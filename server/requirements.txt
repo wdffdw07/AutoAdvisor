@@ -1,0 +1,5 @@
+fastapi==0.133.1
+uvicorn==0.41.0
+websockets>=12.0
+zhipuai==2.1.5.20250725
+python-dotenv>=1.0.0
