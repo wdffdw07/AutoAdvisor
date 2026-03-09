@@ -1,0 +1,13 @@
+{
+  "name": "copilot-client-electron",
+  "version": "0.1.0-step2",
+  "description": "AutoDirector Copilot — Electron 客户端壳（Step2 Mock）",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "devDependencies": {
+    "electron": "^29.4.6"
+  }
+}

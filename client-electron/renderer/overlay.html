@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Copilot Overlay</title>
+  <style>
+    /* ── 重置 ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+      pointer-events: none; /* 整体穿透，与 main.js setIgnoreMouseEvents 双保险 */
+    }
+
+    /* ── 高亮框 ───────────────────────────────────────────────────── */
+    #highlight {
+      position: fixed;
+      display: none;            /* 默认隐藏，overlay:show 时设为 block */
+      border: 2px solid #6c63ff;
+      border-radius: 6px;
+      box-shadow:
+        0 0 0 3px rgba(108, 99, 255, 0.25),
+        0 0 20px rgba(108, 99, 255, 0.5);
+      animation: breathe 1.6s ease-in-out infinite;
+      z-index: 9999;
+    }
+
+    @keyframes breathe {
+      0%,  100% {
+        box-shadow:
+          0 0 0 3px rgba(108, 99, 255, 0.20),
+          0 0 16px rgba(108, 99, 255, 0.45);
+        border-color: #6c63ff;
+      }
+      50% {
+        box-shadow:
+          0 0 0 5px rgba(108, 99, 255, 0.12),
+          0 0 32px rgba(108, 99, 255, 0.70);
+        border-color: #a09aff;
+      }
+    }
+
+    /* 四角装饰 */
+    #highlight::before,
+    #highlight::after {
+      content: '';
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-color: #a09aff;
+      border-style: solid;
+    }
+
+    #highlight::before {
+      top: -3px; left: -3px;
+      border-width: 3px 0 0 3px;
+      border-radius: 2px 0 0 0;
+    }
+
+    #highlight::after {
+      bottom: -3px; right: -3px;
+      border-width: 0 3px 3px 0;
+      border-radius: 0 0 2px 0;
+    }
+
+    /* ── 工具提示标签 ─────────────────────────────────────────────── */
+    #tooltip {
+      position: fixed;
+      display: none;
+      background: rgba(18, 18, 28, 0.90);
+      border: 1px solid rgba(108, 99, 255, 0.40);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      color: #e8e8f0;
+      white-space: nowrap;
+      max-width: 300px;
+      white-space: normal;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+      z-index: 9999;
+      animation: fadeIn 0.15s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* 置信度角标 */
+    #confidenceBadge {
+      display: inline-block;
+      font-size: 10px;
+      color: #9d96ff;
+      margin-left: 6px;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="highlight"></div>
+  <div id="tooltip">
+    <span id="tooltipText"></span>
+    <span id="confidenceBadge"></span>
+  </div>
+
+  <script src="overlay.js"></script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Copilot 胶囊</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="capsule-card" id="capsuleCard">
+
+    <!-- 标题栏 -->
+    <div class="capsule-header">
+      <div class="capsule-title">
+        <div class="icon">✦</div>
+        <span>AutoDirector Copilot</span>
+      </div>
+      <span class="status-badge idle" id="statusBadge">空闲</span>
+    </div>
+
+    <!-- 内容区 -->
+    <div class="capsule-body" id="capsuleBody">
+
+      <!-- 目标输入区（空闲时显示） -->
+      <div class="goal-section" id="goalSection">
+        <label>你想完成什么？</label>
+        <div class="goal-input-wrap">
+          <input
+            type="text"
+            class="goal-input"
+            id="goalInput"
+            placeholder="例：给图片加高斯模糊"
+            maxlength="80"
+          >
+        </div>
+        <p style="font-size:11px;color:var(--text-muted);margin-top:6px;">
+          按 <kbd style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px">F9</kbd>
+          也可唤起
+        </p>
+      </div>
+
+      <!-- 目标展示区（运行/完成时显示） -->
+      <div class="goal-display hidden" id="goalDisplay">
+        <div class="goal-label">目标</div>
+        <div id="goalDisplayText"></div>
+      </div>
+
+      <!-- 进度条（运行时显示） -->
+      <div class="progress-section hidden" id="progressSection">
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+        </div>
+        <span class="progress-label" id="progressLabel">0/0</span>
+      </div>
+
+      <!-- 步骤卡片（运行时显示） -->
+      <div class="step-card hidden" id="stepCard">
+        <span class="step-action-badge click" id="stepActionBadge">点击</span>
+        <div class="step-description" id="stepDescription">—</div>
+        <div class="step-tooltip" id="stepTooltip"></div>
+        <div class="step-reason hidden" id="stepReason"></div>
+      </div>
+
+      <!-- 等待用户操作提示（连续动作） -->
+      <div class="waiting-indicator hidden" id="waitingIndicator">
+        <span class="pulse-dot"></span>
+        <span id="waitingText">正在等待你完成操作…</span>
+      </div>
+
+      <!-- 完成卡片 -->
+      <div class="done-card hidden" id="doneCard">
+        <div class="done-icon">✓</div>
+        <div id="doneSummary">引导完成！</div>
+      </div>
+
+    </div><!-- /capsule-body -->
+
+    <!-- 底部操作区 -->
+    <div class="capsule-footer">
+      <!-- 空闲状态：开始按钮 -->
+      <button class="btn btn-primary" id="btnStart">开始引导</button>
+
+      <!-- 运行状态：下一步按钮 -->
+      <button class="btn btn-primary hidden" id="btnNext" disabled>下一步 →</button>
+
+      <!-- 完成/运行状态：重置按钮 -->
+      <button class="btn btn-ghost hidden" id="btnReset">重新开始</button>
+    </div>
+
+  </div><!-- /capsule-card -->
+
+  <script src="capsule.js"></script>
+</body>
+</html>
