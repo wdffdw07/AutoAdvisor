@@ -15,6 +15,7 @@
 const { app, BrowserWindow, ipcMain, globalShortcut, screen } = require('electron')
 const path = require('path')
 const { MockSession } = require('./mock')
+const { getActiveWindow, captureRegion } = require('./sniffer')
 
 // ── 窗口引用 ──────────────────────────────────────────────────────────────────
 let capsuleWin = null
@@ -136,6 +137,60 @@ ipcMain.on('user:next', (_event, data) => {
   console.log('[main] user:next', data?.trace_id || '')
   if (currentSession) {
     currentSession.next()
+  }
+})
+
+// ── ipc:get-active-window ───────────────────────────────────────────────────
+// Renderer invoke → Main 查询前台窗口元数据（协议 §C Renderer->Main invoke）
+// 返回：{ process_name, window_title, window_box, dpi_scale }
+ipcMain.handle('ipc:get-active-window', async () => {
+  try {
+    const info = await getActiveWindow()
+    console.log(`[main] ipc:get-active-window → ${info.process_name} ${JSON.stringify(info.window_box)}`)
+    return info
+  } catch (err) {
+    console.error('[main] ipc:get-active-window error:', err.message)
+    return { error: err.message, process_name: '', window_title: '', window_box: [0, 0, 0, 0], dpi_scale: 1 }
+  }
+})
+
+// ── ipc:capture-region ──────────────────────────────────────────────────────
+// Renderer invoke → Main 对指定矩形区域截图（协议 §C Renderer->Main invoke）
+// 请求：{ window_box: [x, y, w, h] }
+// 返回：{ image_base64: '...' }  或  { error: '...' }
+ipcMain.handle('ipc:capture-region', async (_event, { window_box }) => {
+  if (!Array.isArray(window_box) || window_box.length < 4) {
+    return { error: 'ipc:capture-region: window_box 格式错误' }
+  }
+  try {
+    const image_base64 = await captureRegion(window_box)
+    console.log(`[main] ipc:capture-region → base64 length=${image_base64.length}`)
+    return { image_base64 }
+  } catch (err) {
+    console.error('[main] ipc:capture-region error:', err.message)
+    return { error: err.message }
+  }
+})
+
+// ── ipc:set-overlay ─────────────────────────────────────────────────────────
+// Renderer invoke → Main 计算坐标并更新叠加层窗口（协议 §C Renderer->Main invoke）
+// 请求：{ relative_box, window_box, dpi_scale, tooltip, click_through? }
+// 返回：{ success: true }
+ipcMain.handle('ipc:set-overlay', (_event, cmd) => {
+  try {
+    const { relative_box, window_box, tooltip } = cmd || {}
+    let abs_box = null
+    if (Array.isArray(relative_box) && Array.isArray(window_box)) {
+      const [xw, yw] = window_box
+      const [xr, yr, wr, hr] = relative_box
+      abs_box = [xw + xr, yw + yr, wr, hr]
+    }
+    sendToOverlay({ visible: true, abs_box, tooltip })
+    console.log(`[main] ipc:set-overlay abs_box=${JSON.stringify(abs_box)}`)
+    return { success: true }
+  } catch (err) {
+    console.error('[main] ipc:set-overlay error:', err.message)
+    return { success: false, error: err.message }
   }
 })
 

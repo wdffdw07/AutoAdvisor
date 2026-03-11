@@ -1,5 +1,15 @@
 # AutoDirector Copilot - 剪映智导
 
+> ⚠️ 说明（迁移期）：本 README 主要描述旧阶段运行方式。
+> 当前迁移执行与 Agent 约束请以 `agent_playbook/` 为准，尤其是：
+> - `agent_playbook/02_mvp_scope_checklist.md`
+> - `agent_playbook/03_ws_ipc_protocol_v1.md`
+> - `agent_playbook/04_architecture_contracts.md`
+> - `agent_playbook/05_agent_constraints.md`
+> - `agent_playbook/06_definition_of_done_and_acceptance.md`
+> - `agent_playbook/07_task_card_templates.md`
+> - `log/session_YYYY-MM-DD.md`（最近会话日志）
+
 视频剪辑领域的 "GitHub Copilot"，通过多模态大模型实现"说到哪，指到哪"的保姆级剪辑导航。
 
 ## 🎯 项目状态

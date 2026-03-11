@@ -46,6 +46,11 @@
       <div class="goal-display hidden" id="goalDisplay">
         <div class="goal-label">目标</div>
         <div id="goalDisplayText"></div>
+        <!-- Step3 新增：显示活跃窗口上下文（由 ipc:get-active-window 填入） -->
+        <div id="windowCtxBadge"
+             style="font-size:10px;color:var(--text-muted);margin-top:4px;
+                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        </div>
       </div>
 
       <!-- 进度条（运行时显示） -->

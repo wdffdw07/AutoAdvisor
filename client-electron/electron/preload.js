@@ -5,7 +5,8 @@
  * 严格遵守架构契约 04_architecture_contracts.md §1。
  *
  * Renderer → Main (invoke / send):
- *   mock:start, user:next, ipc:set-overlay
+ *   mock:start, user:next
+ *   ipc:get-active-window (invoke), ipc:capture-region (invoke), ipc:set-overlay (invoke)
  *
  * Main → Renderer (on):
  *   ipc:ws-message, ipc:shortcut-triggered, ipc:ws-status, overlay:show, overlay:hide
@@ -15,10 +16,16 @@
 
 const { contextBridge, ipcRenderer } = require('electron')
 
-// 允许的 send 通道（Renderer → Main，单向）
+// 允许的 send 通道（Renderer → Main，单向，无返回值）
 const ALLOWED_SEND = new Set([
   'mock:start',
-  'user:next',
+  'user:next'
+])
+
+// 允许的 invoke 通道（Renderer → Main，请求-响应，有返回值；协议 §C invoke 通道）
+const ALLOWED_INVOKE = new Set([
+  'ipc:get-active-window',
+  'ipc:capture-region',
   'ipc:set-overlay'
 ])
 
@@ -33,7 +40,7 @@ const ALLOWED_ON = new Set([
 
 contextBridge.exposeInMainWorld('electronAPI', {
   /**
-   * 向 Main 单向发送消息
+   * 向 Main 单向发送消息（无返回值）
    * @param {string} channel
    * @param {*} data
    */
@@ -43,6 +50,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return
     }
     ipcRenderer.send(channel, data)
+  },
+
+  /**
+   * 向 Main 发送请求并等待返回值（invoke，协议 §C invoke 通道）
+   * @param {string} channel
+   * @param {*} data
+   * @returns {Promise<*>}
+   */
+  invoke (channel, data) {
+    if (!ALLOWED_INVOKE.has(channel)) {
+      console.warn(`[preload] 禁止 invoke 通道: ${channel}`)
+      return Promise.resolve(null)
+    }
+    return ipcRenderer.invoke(channel, data)
   },
 
   /**

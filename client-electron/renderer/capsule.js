@@ -15,6 +15,7 @@ const elGoalSection  = document.getElementById('goalSection')
 const elGoalInput    = document.getElementById('goalInput')
 const elGoalDisplay  = document.getElementById('goalDisplay')
 const elGoalText     = document.getElementById('goalDisplayText')
+const elWindowCtx    = document.getElementById('windowCtxBadge')  // Step3 新增
 const elProgressSec  = document.getElementById('progressSection')
 const elProgressFill = document.getElementById('progressFill')
 const elProgressLbl  = document.getElementById('progressLabel')
@@ -32,10 +33,11 @@ const btnNext        = document.getElementById('btnNext')
 const btnReset       = document.getElementById('btnReset')
 
 /* ── 会话状态 ────────────────────────────────────────────────────────────── */
-let sessionId   = null
-let totalSteps  = 0
-let currentStep = 0
-let uiState     = 'idle'   // idle | running | waiting_manual | done
+let sessionId      = null
+let totalSteps     = 0
+let currentStep    = 0
+let uiState        = 'idle'   // idle | running | waiting_manual | done
+let currentWindowCtx = null   // Step3：由 ipc:get-active-window 填入，供 session.start 附带上下文
 
 /* ── 辅助函数 ────────────────────────────────────────────────────────────── */
 function show (el) { el.classList.remove('hidden') }
@@ -68,9 +70,11 @@ function switchToIdle () {
   hide(elGoalDisplay);   hide(elProgressSec)
   hide(elStepCard);      hide(elWaiting);      hide(elDoneCard)
   show(btnStart);        hide(btnNext);         hide(btnReset)
-  sessionId   = null
-  totalSteps  = 0
-  currentStep = 0
+  sessionId        = null
+  totalSteps       = 0
+  currentStep      = 0
+  currentWindowCtx = null
+  if (elWindowCtx) elWindowCtx.textContent = ''
 }
 
 function switchToRunning (goal, sid) {
@@ -79,6 +83,10 @@ function switchToRunning (goal, sid) {
   setStatus('running', '引导中')
   hide(elGoalSection)
   elGoalText.textContent = goal;    show(elGoalDisplay)
+  // Step3：展示活跃窗口上下文
+  if (elWindowCtx && currentWindowCtx) {
+    elWindowCtx.textContent = `检测到: ${currentWindowCtx.process_name}`
+  }
   show(elProgressSec)
   hide(elStepCard);  hide(elWaiting);  hide(elDoneCard)
   hide(btnStart);    show(btnNext);    btnNext.disabled = true
@@ -179,13 +187,24 @@ function handleWsMessage (msg) {
 }
 
 /* ── 按钮事件 ────────────────────────────────────────────────────────────── */
-btnStart.addEventListener('click', () => {
+btnStart.addEventListener('click', async () => {
   const goal = elGoalInput.value.trim()
   if (!goal) {
     elGoalInput.focus()
     elGoalInput.style.borderColor = '#f05050'
     setTimeout(() => { elGoalInput.style.borderColor = '' }, 1500)
     return
+  }
+
+  // Step3：若 F9 快捷键未预取到窗口信息，在此备用负责取一次
+  // （此时 Electron 窗口可能已立于前台，所得程序名可能是 Electron 自身，信息䮳为参考）
+  if (!currentWindowCtx) {
+    try {
+      currentWindowCtx = await window.electronAPI.invoke('ipc:get-active-window')
+      console.log('[capsule] btnStart 备用取窗口:', currentWindowCtx.process_name)
+    } catch (err) {
+      console.warn('[capsule] btnStart 取窗口失败:', err)
+    }
   }
 
   sessionId = 's-mock-' + simpleId()
@@ -195,6 +214,21 @@ btnStart.addEventListener('click', () => {
     goal,
     session_id: sessionId
   })
+
+  // Step3：异步验收截图能力（打印 base64 长度以证明通道可用）
+  if (currentWindowCtx && currentWindowCtx.window_box) {
+    window.electronAPI.invoke('ipc:capture-region', {
+      window_box: currentWindowCtx.window_box
+    }).then(res => {
+      if (res && res.image_base64) {
+        console.log(`[capsule] 截图成功: base64 length=${res.image_base64.length}`)
+      } else if (res && res.error) {
+        console.warn('[capsule] 截图失败:', res.error)
+      }
+    }).catch(err => {
+      console.warn('[capsule] ipc:capture-region 错误:', err)
+    })
+  }
 })
 
 btnNext.addEventListener('click', () => {
@@ -228,9 +262,18 @@ window.electronAPI.on('ipc:ws-status', ({ status }) => {
 
 window.electronAPI.on('ipc:shortcut-triggered', ({ accelerator }) => {
   console.log('[capsule] shortcut:', accelerator)
-  // F9：焦点切换到输入框
-  if (accelerator === 'F9' && uiState === 'idle') {
-    elGoalInput.focus()
+  if (accelerator === 'F9') {
+    // Step3：在用户与 Electron 交互之前立即抓取前台窗口信息
+    //        （F9 是全局快捷键，此时目标软件仍处于前台状态）
+    window.electronAPI.invoke('ipc:get-active-window').then(ctx => {
+      currentWindowCtx = ctx
+      console.log('[capsule] F9 捕获窗口上下文:', ctx && ctx.process_name, ctx && ctx.window_box)
+    }).catch(err => {
+      console.warn('[capsule] ipc:get-active-window 错误:', err)
+    })
+    if (uiState === 'idle') {
+      elGoalInput.focus()
+    }
   }
 })
 
