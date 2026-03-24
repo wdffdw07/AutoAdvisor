@@ -10,6 +10,14 @@ from pathlib import Path
 from zhipuai import ZhipuAI
 
 
+def _ascii_safe(value: object) -> str:
+    return str(value).encode("ascii", "backslashreplace").decode("ascii")
+
+
+def _log(message: str) -> None:
+    print(_ascii_safe(message))
+
+
 class JianyingAgent:
     """剪映辅助 Agent - 基于视觉大模型的动态探索型智能体"""
     
@@ -24,7 +32,7 @@ class JianyingAgent:
         self.api_key = api_key or os.getenv("GLM_API_KEY") or os.getenv("OPENAI_API_KEY")
         
         if not self.api_key:
-            raise ValueError("❌ 未设置 API Key，请在 .env 中配置 GLM_API_KEY")
+            raise ValueError("No API key configured. Set GLM_API_KEY in .env.")
         
         # 初始化智谱 AI 客户端（官方 SDK）
         # 设置较长的超时时间（120秒），因为图像分析需要更长时间
@@ -39,20 +47,20 @@ class JianyingAgent:
         # 默认模型（GLM-4-Flash 支持视觉理解，速度更快）
         self.model = os.getenv("LLM_MODEL", "glm-4-flash")
         
-        print(f"✅ LLM Agent 初始化成功（智谱 AI 官方 SDK）")
-        print(f"   模型: {self.model}")
+        _log("[INFO] LLM agent initialized with ZhipuAI SDK")
+        _log(f"       Model: {self.model}")
     
     def _load_schema(self) -> Dict[str, Any]:
         """加载 UI 拓扑地图配置"""
         schema_path = Path(__file__).parent / "schema.json"
         
         if not schema_path.exists():
-            raise FileNotFoundError(f"❌ 未找到 schema.json: {schema_path}")
+            raise FileNotFoundError(f"schema.json not found: {schema_path}")
         
         with open(schema_path, "r", encoding="utf-8") as f:
             schema = json.load(f)
         
-        print(f"✅ 已加载 UI 拓扑地图: {schema.get('description', 'N/A')}")
+        _log(f"[INFO] Loaded UI schema: {schema.get('description', 'N/A')}")
         return schema
     
     def _build_system_prompt(self, user_goal: str) -> str:
@@ -239,15 +247,15 @@ class JianyingAgent:
             import time
             start_time = time.time()
             
-            print(f"\n🧠 LLM Agent 开始分析...")
-            print(f"   目标: {user_goal}")
-            print(f"   图片大小: {len(base64_image)} 字符 ({len(base64_image) / 1024 / 1024:.2f} MB)")
+            _log("\n[INFO] LLM agent analysis started")
+            _log(f"       Goal: {user_goal}")
+            _log(f"       Image size: {len(base64_image)} chars ({len(base64_image) / 1024 / 1024:.2f} MB)")
             
             # 构建 System Prompt
             system_prompt = self._build_system_prompt(user_goal)
             
             # 调用多模态大模型
-            print(f"   ⏳ 正在调用 {self.model}...")
+            _log(f"       Calling model: {self.model}...")
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -277,52 +285,52 @@ class JianyingAgent:
             )
             
             elapsed_time = time.time() - start_time
-            print(f"   ✅ API 响应时间: {elapsed_time:.2f} 秒")
+            _log(f"       API response time: {elapsed_time:.2f}s")
             
             # 打印完整的 API 响应对象（调试用）
-            print(f"\n🔍 API 响应详情：")
-            print(f"   Response ID: {response.id}")
-            print(f"   Model: {response.model}")
-            print(f"   Choices 数量: {len(response.choices) if response.choices else 0}")
+            _log("\n[INFO] API response details:")
+            _log(f"       Response ID: {response.id}")
+            _log(f"       Model: {response.model}")
+            _log(f"       Choice count: {len(response.choices) if response.choices else 0}")
             
             # 检查 API 响应是否有效
             if not response.choices or len(response.choices) == 0:
-                print(f"   ❌ response.choices 为空！完整响应: {response}")
-                raise ValueError("API 返回了空的 choices 列表")
+                _log(f"       response.choices empty. Full response: {response}")
+                raise ValueError("API returned an empty choices list")
             
             choice = response.choices[0]
-            print(f"   Finish Reason: {choice.finish_reason}")
-            print(f"   Message Role: {choice.message.role}")
+            _log(f"       Finish reason: {choice.finish_reason}")
+            _log(f"       Message role: {choice.message.role}")
             
             # GLM-4.6V 支持思维链，需要检查两个字段
             message = choice.message
             regular_content = message.content
             reasoning_content = getattr(message, 'reasoning_content', None)
             
-            print(f"   Regular Content: {repr(regular_content[:100] if regular_content else 'None')}")
-            print(f"   Reasoning Content: {repr(reasoning_content[:100] if reasoning_content else 'None')}")
+            _log(f"       Regular content: {repr(regular_content[:100] if regular_content else 'None')}")
+            _log(f"       Reasoning content: {repr(reasoning_content[:100] if reasoning_content else 'None')}")
             
             # 优先使用 regular content（正常回复），如果为空才回退到 reasoning_content
             if regular_content and regular_content.strip():
                 llm_output = regular_content.strip()
-                print(f"   ✅ 使用 regular content")
+                _log("       Using regular content")
             elif reasoning_content and reasoning_content.strip():
                 llm_output = reasoning_content.strip()
-                print(f"   ⚠️ regular content 为空，使用 reasoning_content（思维链回退）")
+                _log("       regular content empty; using reasoning_content fallback")
             else:
-                print(f"   ❌ content 和 reasoning_content 都为空！")
-                raise ValueError("API 返回的 content 和 reasoning_content 都为空")
+                _log("       content and reasoning_content are both empty")
+                raise ValueError("API returned empty content and reasoning_content")
             
             # 提取 LLM 返回的文本
             
-            print(f"   处理后 llm_output 长度: {len(llm_output)}")
-            print(f"   处理后 llm_output (repr): {repr(llm_output[:100])}")
+            _log(f"       Processed llm_output length: {len(llm_output)}")
+            _log(f"       Processed llm_output preview: {repr(llm_output[:100])}")
             
             if not llm_output:
-                print(f"   ❌ llm_output 为空字符串！")
-                raise ValueError("LLM 返回了空字符串")
+                _log("       llm_output is empty")
+                raise ValueError("LLM returned an empty string")
             
-            print(f"\n📤 LLM 原始输出 ({len(llm_output)} 字符)：\n{llm_output}\n")
+            _log(f"\n[INFO] Raw LLM output ({len(llm_output)} chars):\n{llm_output}\n")
             
             # 解析 JSON
             # 移除可能的 markdown 代码块标记
@@ -346,28 +354,28 @@ class JianyingAgent:
                 "params": result.get("params", {})  # 保留 params 参数
             }
             
-            print(f"✅ LLM 解析成功：")
-            print(f"   操作类型: {instruction['action']}")
-            print(f"   坐标: {instruction['box']}")
-            print(f"   提示: {instruction['tooltip']}")
-            print(f"   原因: {instruction['reason']}")
+            _log("[INFO] LLM JSON parsed successfully")
+            _log(f"       Action: {instruction['action']}")
+            _log(f"       Box: {instruction['box']}")
+            _log(f"       Tooltip: {instruction['tooltip']}")
+            _log(f"       Reason: {instruction['reason']}")
             if instruction['params']:
-                print(f"   参数: {instruction['params']}")
+                _log(f"       Params: {instruction['params']}")
             
             return instruction
             
         except json.JSONDecodeError as e:
-            print(f"\n❌ JSON 解析失败: {e}")
-            print(f"   错误位置: line {e.lineno} column {e.colno}")
-            print(f"   错误文档: {repr(e.doc[:200] if e.doc else 'N/A')}")
+            _log(f"\n[ERROR] JSON parse failed: {e}")
+            _log(f"       Location: line {e.lineno} column {e.colno}")
+            _log(f"       Error document: {repr(e.doc[:200] if e.doc else 'N/A')}")
             # 安全地打印原始输出
             try:
-                print(f"   llm_output 变量类型: {type(llm_output)}")
-                print(f"   llm_output 长度: {len(llm_output)}")
-                print(f"   llm_output 前500字符: {llm_output[:500]}")
-                print(f"   llm_output (repr): {repr(llm_output[:200])}")
+                _log(f"       llm_output type: {type(llm_output)}")
+                _log(f"       llm_output length: {len(llm_output)}")
+                _log(f"       llm_output first 500 chars: {llm_output[:500]}")
+                _log(f"       llm_output repr: {repr(llm_output[:200])}")
             except Exception as print_err:
-                print(f"   无法打印 llm_output: {print_err}")
+                _log(f"       Failed to print llm_output: {print_err}")
             # 返回降级响应
             return {
                 "action": "highlight",
@@ -378,17 +386,17 @@ class JianyingAgent:
         
         except ValueError as e:
             # API 返回内容为空的情况
-            print(f"\n❌ ValueError: {e}")
-            print(f"   提示: 可能是 API 超时、配额用尽、网络问题或内容违规")
+            _log(f"\n[ERROR] ValueError: {e}")
+            _log("       Possible cause: API timeout, quota exhaustion, network issue, or content policy rejection")
             # 尝试打印 response 对象
             try:
                 if 'response' in locals():
-                    print(f"   Response 对象存在: {response}")
-                    print(f"   Response choices: {response.choices if hasattr(response, 'choices') else 'N/A'}")
+                    _log(f"       Response object exists: {response}")
+                    _log(f"       Response choices: {response.choices if hasattr(response, 'choices') else 'N/A'}")
                 else:
-                    print(f"   Response 对象不存在（可能 API 调用失败）")
+                    _log("       Response object missing (API call may have failed)")
             except Exception as debug_err:
-                print(f"   调试信息打印失败: {debug_err}")
+                _log(f"       Failed to print debug info: {debug_err}")
             
             return {
                 "action": "highlight",
@@ -398,19 +406,19 @@ class JianyingAgent:
             }
         
         except Exception as e:
-            print(f"\n❌ 未预期的异常: {type(e).__name__}: {e}")
+            _log(f"\n[ERROR] Unexpected exception: {type(e).__name__}: {e}")
             # 打印更详细的错误信息
             import traceback
-            print(f"   详细堆栈:\n{traceback.format_exc()}")
+            _log(f"       Traceback:\n{traceback.format_exc()}")
             
             # 检查是否是智谱 AI SDK 的特定异常
             exception_type = type(e).__name__
             if "APIError" in exception_type or "RateLimitError" in exception_type or "APIConnectionError" in exception_type:
-                print(f"   ⚠️ 这是智谱 AI API 错误，可能原因：")
-                print(f"      - API 配额用尽")
-                print(f"      - API Key 无效或过期")
-                print(f"      - 网络连接问题")
-                print(f"      - 请求内容违规")
+                _log("       This looks like a ZhipuAI API error. Possible causes:")
+                _log("         - API quota exhausted")
+                _log("         - API key invalid or expired")
+                _log("         - Network connectivity issue")
+                _log("         - Request content rejected")
             
             # 返回降级响应
             return {

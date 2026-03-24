@@ -2,23 +2,28 @@
 AutoDirector Copilot - 云端服务
 Phase 3: 集成多模态大模型，实现动态 UI 理解和操作指引
 """
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
 import json
-import uvicorn
-from datetime import datetime
-from dotenv import load_dotenv
 import os
+from datetime import datetime
 
-# 导入 LLM Agent
+import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+
 from llm_agent import get_agent
 
-# 加载环境变量
+
+def _ascii_safe(value: object) -> str:
+    return str(value).encode("ascii", "backslashreplace").decode("ascii")
+
+
+def _log(message: str) -> None:
+    print(_ascii_safe(message))
+
+
 load_dotenv()
 
 app = FastAPI(title="AutoDirector Copilot Server")
-
-# 存储活跃的WebSocket连接
 active_connections: list[WebSocket] = []
 
 
@@ -50,14 +55,14 @@ async def health_check():
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket 端点 - 接收客户端截图并返回操作指令
-    
+
     接收格式:
     {
         "type": "screenshot",
         "data": "base64_encoded_image...",
         "windowRect": {"left": 100, "top": 200, "width": 1920, "height": 1080}
     }
-    
+
     返回格式 (Phase 3 - 真实 LLM 响应):
     {
         "action": "highlight",
@@ -68,119 +73,107 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     active_connections.append(websocket)
     client_id = id(websocket)
-    
-    print(f"✅ 客户端已连接 [ID: {client_id}]")
-    print(f"📊 当前活跃连接数: {len(active_connections)}")
-    
-    # 初始化 LLM Agent（如果尚未初始化）
+
+    _log(f"[INFO] Client connected [id={client_id}]")
+    _log(f"[INFO] Active connections: {len(active_connections)}")
+
     try:
         agent = get_agent()
-        print(f"✅ LLM Agent 已就绪")
-    except Exception as e:
-        print(f"❌ LLM Agent 初始化失败: {e}")
-        print(f"⚠️  将使用降级模式（硬编码响应）")
+        _log("[INFO] LLM agent ready")
+    except Exception as error:
+        _log(f"[ERROR] LLM agent initialization failed: {error}")
+        _log("[WARN] Falling back to hardcoded responses")
         agent = None
-    
+
     try:
         while True:
-            # 接收客户端消息
             message = await websocket.receive_text()
-            
+
             try:
                 data = json.loads(message)
                 msg_type = data.get("type", "unknown")
-                
-                print(f"\n📥 收到消息类型: {msg_type}")
-                
+
+                _log(f"\n[INFO] Received message type: {msg_type}")
+
                 if msg_type == "screenshot":
-                    # 获取截图信息
                     image_data = data.get("data", "")
                     window_rect = data.get("windowRect", {})
-                    
-                    print(f"  📸 截图大小: {len(image_data)} 字符 (Base64)")
-                    print(f"  🪟 窗口位置: {window_rect}")
-                    
-                    # ============================================
-                    # Phase 3: 使用真实 LLM 进行动态推理
-                    # ============================================
+
+                    _log(f"  [INFO] Screenshot size: {len(image_data)} chars (Base64)")
+                    _log(f"  [INFO] Window rect: {window_rect}")
+
                     if agent is not None:
                         try:
-                            # 调用 LLM Agent 分析截图
                             response = await agent.analyze_screenshot(
                                 base64_image=image_data,
-                                user_goal="加一个老电视特效"  # 未来可从客户端传入
+                                user_goal="加一个老电视特效"
                             )
                         except Exception as llm_error:
-                            print(f"  ❌ LLM 分析失败: {llm_error}")
-                            # 降级到硬编码响应
+                            _log(f"  [ERROR] LLM analysis failed: {llm_error}")
                             response = {
                                 "action": "click",
                                 "box": [200, 50, 100, 40],
                                 "tooltip": "AI 暂时不可用，这是默认位置"
                             }
                     else:
-                        # 降级模式：硬编码响应
                         response = {
                             "action": "click",
                             "box": [200, 50, 100, 40],
                             "tooltip": "点击特效（降级模式）"
                         }
-                    
-                    # 发送响应（直接发送，不再覆盖 action）
+
                     await websocket.send_text(json.dumps(response))
-                    print(f"  📤 已发送指令: {response}")
-                
+                    _log(f"  [INFO] Sent response: {response}")
+
                 elif msg_type == "ping":
-                    # 心跳包
                     await websocket.send_text(json.dumps({"type": "pong"}))
-                    
+
                 else:
-                    print(f"  ⚠️  未知消息类型: {msg_type}")
-                    
+                    _log(f"  [WARN] Unknown message type: {msg_type}")
+
             except json.JSONDecodeError:
-                print(f"  ❌ JSON 解析失败")
+                _log("  [ERROR] JSON parse failed")
                 await websocket.send_text(json.dumps({
                     "error": "Invalid JSON format"
                 }))
-    
+
     except WebSocketDisconnect:
         active_connections.remove(websocket)
-        print(f"\n❌ 客户端断开连接 [ID: {client_id}]")
-        print(f"📊 当前活跃连接数: {len(active_connections)}")
-    
-    except Exception as e:
-        print(f"\n💥 WebSocket 错误: {str(e)}")
+        _log(f"\n[INFO] Client disconnected [id={client_id}]")
+        _log(f"[INFO] Active connections: {len(active_connections)}")
+
+    except Exception as error:
+        _log(f"\n[ERROR] WebSocket failure: {error}")
         if websocket in active_connections:
             active_connections.remove(websocket)
 
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("🚀 AutoDirector Copilot 云端服务启动中... (Phase 3)")
+    _log("[INFO] AutoDirector Copilot server starting (Phase 3)")
     print("=" * 60)
-    print(f"📡 WebSocket 端点: ws://127.0.0.1:8000/ws")
-    print(f"🌐 HTTP 端点: http://127.0.0.1:8000")
-    print(f"💊 健康检查: http://127.0.0.1:8000/health")
+    _log("[INFO] WebSocket endpoint: ws://127.0.0.1:8000/ws")
+    _log("[INFO] HTTP endpoint: http://127.0.0.1:8000")
+    _log("[INFO] Health endpoint: http://127.0.0.1:8000/health")
     print("=" * 60)
-    
-    # 检查环境变量
+
     has_glm = bool(os.getenv("GLM_API_KEY"))
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
-    
+
     if has_glm:
-        print("✅ GLM API 已配置")
-        print(f"   模型: {os.getenv('LLM_MODEL', 'glm-4v')}")
+        _log("[INFO] GLM API key configured")
+        _log(f"[INFO] Model: {os.getenv('LLM_MODEL', 'glm-4v')}")
     elif has_openai:
-        print("✅ OpenAI API 已配置")
-        print(f"   模型: {os.getenv('LLM_MODEL', 'gpt-4o')}")
+        _log("[INFO] OpenAI API key configured")
+        _log(f"[INFO] Model: {os.getenv('LLM_MODEL', 'gpt-4o')}")
     else:
-        print("⚠️  警告: 未设置 API Key")
-        print("   请在 .env 文件中配置 GLM_API_KEY 或 OPENAI_API_KEY")
-        print("   或使用降级模式（硬编码响应）")
-    
+        _log("[WARN] No API key configured")
+        _log("[WARN] Configure GLM_API_KEY or OPENAI_API_KEY in .env")
+        _log("[WARN] Hardcoded fallback mode will be used")
+
     print("=" * 60)
     print()
-    
+
     uvicorn.run(
         app,
         host="0.0.0.0",
