@@ -1,7 +1,3 @@
-/* ============================================================
-   styles.css — AutoDirector Copilot 胶囊 UI 样式
-   ============================================================ */
-
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -9,20 +5,22 @@
 }
 
 :root {
-  --bg-glass:       rgba(18, 18, 28, 0.88);
-  --bg-glass-light: rgba(30, 30, 48, 0.90);
-  --border-glass:   rgba(255, 255, 255, 0.10);
-  --accent:         #6c63ff;
-  --accent-hover:   #857dff;
-  --accent-glow:    rgba(108, 99, 255, 0.45);
-  --text-primary:   #e8e8f0;
-  --text-secondary: #9191aa;
-  --text-muted:     #5a5a72;
-  --success:        #4caf82;
-  --warning:        #f0a050;
-  --radius-lg:      18px;
-  --radius-md:      12px;
-  --radius-sm:      8px;
+  --bg-glass: rgba(18, 18, 28, 0.92);
+  --bg-glass-light: rgba(31, 31, 48, 0.92);
+  --bg-glass-soft: rgba(255, 255, 255, 0.04);
+  --border-glass: rgba(255, 255, 255, 0.10);
+  --accent: #6c63ff;
+  --accent-hover: #857dff;
+  --accent-glow: rgba(108, 99, 255, 0.35);
+  --text-primary: #ececf8;
+  --text-secondary: #aaaac0;
+  --text-muted: #6f6f86;
+  --success: #4caf82;
+  --warning: #f0a050;
+  --danger: #f05050;
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
 }
 
 body {
@@ -35,10 +33,10 @@ body {
   overflow: hidden;
 }
 
-/* ── 胶囊卡片容器 ──────────────────────────────────────────── */
 .capsule-card {
+  position: relative;
   width: 320px;
-  min-height: 420px;
+  height: 520px;
   background: var(--bg-glass);
   border: 1px solid var(--border-glass);
   border-radius: var(--radius-lg);
@@ -46,45 +44,38 @@ body {
   -webkit-backdrop-filter: blur(20px) saturate(1.5);
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255,255,255,0.07);
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: slideIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-24px) scale(0.95); }
-  to   { opacity: 1; transform: translateX(0)    scale(1);    }
-}
-
-/* ── 标题栏（可拖拽） ──────────────────────────────────────── */
 .capsule-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px 10px;
-  -webkit-app-region: drag;
   border-bottom: 1px solid var(--border-glass);
+  -webkit-app-region: drag;
 }
 
 .capsule-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
   font-size: 13px;
-  letter-spacing: 0.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
 }
 
 .capsule-title .icon {
   width: 20px;
   height: 20px;
-  background: var(--accent);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--accent);
   font-size: 11px;
 }
 
@@ -96,27 +87,47 @@ body {
   -webkit-app-region: no-drag;
 }
 
-.status-badge.idle       { background: rgba(255,255,255,0.08); color: var(--text-muted); }
-.status-badge.connected  { background: rgba(76, 175, 130, 0.2); color: var(--success); }
-.status-badge.running    { background: rgba(108, 99, 255, 0.2); color: var(--accent-hover); }
-.status-badge.done       { background: rgba(76, 175, 130, 0.2); color: var(--success); }
-.status-badge.error      { background: rgba(240, 80,  80, 0.2); color: #f05050; }
+.status-badge.idle { background: rgba(255, 255, 255, 0.08); color: var(--text-muted); }
+.status-badge.captured { background: rgba(76, 175, 130, 0.2); color: var(--success); }
+.status-badge.connected { background: rgba(76, 175, 130, 0.2); color: var(--success); }
+.status-badge.running { background: rgba(108, 99, 255, 0.2); color: var(--accent-hover); }
+.status-badge.done { background: rgba(76, 175, 130, 0.2); color: var(--success); }
+.status-badge.error { background: rgba(240, 80, 80, 0.2); color: var(--danger); }
 
-/* ── 内容区 ─────────────────────────────────────────────────── */
 .capsule-body {
+  position: relative;
   flex: 1;
+  min-height: 0;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
-/* ── 目标输入区（空闲状态） ──────────────────────────────────── */
+.capsule-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.capsule-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.capsule-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
 .goal-section label {
   display: block;
+  margin-bottom: 6px;
   font-size: 11px;
   color: var(--text-secondary);
-  margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.8px;
 }
@@ -128,8 +139,8 @@ body {
 
 .goal-input {
   flex: 1;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
   padding: 9px 12px;
   color: var(--text-primary);
@@ -140,31 +151,84 @@ body {
   -webkit-app-region: no-drag;
 }
 
-.goal-input::placeholder { color: var(--text-muted); }
+.goal-input::placeholder {
+  color: var(--text-muted);
+}
+
 .goal-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
-/* ── 目标展示区（运行/完成状态） ─────────────────────────────── */
+.goal-shortcut-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.shortcut-key {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.capture-hint {
+  min-height: 16px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .goal-display {
   background: rgba(108, 99, 255, 0.1);
   border: 1px solid rgba(108, 99, 255, 0.25);
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  font-size: 13px;
-  color: var(--text-primary);
+  padding: 12px;
 }
 
-.goal-display .goal-label {
+.goal-display-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.goal-label {
   font-size: 10px;
   color: var(--accent-hover);
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  margin-bottom: 4px;
 }
 
-/* ── 进度条 ─────────────────────────────────────────────────── */
+.goal-window-context {
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon-button {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  -webkit-app-region: no-drag;
+}
+
+.icon-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text-primary);
+}
+
 .progress-section {
   display: flex;
   align-items: center;
@@ -174,7 +238,7 @@ body {
 .progress-bar-wrap {
   flex: 1;
   height: 4px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -188,14 +252,59 @@ body {
 }
 
 .progress-label {
+  min-width: 40px;
   font-size: 11px;
   color: var(--text-secondary);
-  white-space: nowrap;
-  min-width: 40px;
   text-align: right;
 }
 
-/* ── 步骤卡片 ────────────────────────────────────────────────── */
+.plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass-soft);
+  border: 1px solid transparent;
+}
+
+.plan-item.active {
+  border-color: rgba(108, 99, 255, 0.35);
+  background: rgba(108, 99, 255, 0.12);
+}
+
+.plan-item.done {
+  opacity: 0.72;
+}
+
+.plan-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.plan-item-index {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.plan-item-action {
+  font-size: 10px;
+  color: var(--accent-hover);
+}
+
+.plan-item-description {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
 .step-card {
   background: var(--bg-glass-light);
   border: 1px solid var(--border-glass);
@@ -204,57 +313,79 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  animation: fadeUp 0.2s ease;
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 .step-action-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
+  width: fit-content;
   padding: 2px 8px;
   border-radius: 10px;
-  width: fit-content;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
 }
 
-.step-action-badge.click  { background: rgba(108,99,255,0.18); color: #9d96ff; }
-.step-action-badge.drag   { background: rgba(240,160, 80,0.18); color: var(--warning); }
-.step-action-badge.input_text { background: rgba(76,175,130,0.18); color: var(--success); }
-.step-action-badge.scroll { background: rgba(100,200,255,0.18); color: #64c8ff; }
-.step-action-badge.wait   { background: rgba(255,255,255,0.10); color: var(--text-secondary); }
+.step-action-badge.click { background: rgba(108, 99, 255, 0.18); color: #9d96ff; }
+.step-action-badge.drag { background: rgba(240, 160, 80, 0.18); color: var(--warning); }
+.step-action-badge.input_text { background: rgba(76, 175, 130, 0.18); color: var(--success); }
+.step-action-badge.scroll { background: rgba(100, 200, 255, 0.18); color: #64c8ff; }
+.step-action-badge.wait { background: rgba(255, 255, 255, 0.1); color: var(--text-secondary); }
+.step-action-badge.complete { background: rgba(76, 175, 130, 0.18); color: var(--success); }
 
 .step-description {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
-  line-height: 1.4;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .step-tooltip {
   font-size: 12px;
   color: var(--text-secondary);
   padding: 8px 10px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   border-left: 2px solid var(--accent);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  line-height: 1.4;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .step-reason {
   font-size: 11px;
   color: var(--text-muted);
-  line-height: 1.4;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
-/* ── 完成卡片 ────────────────────────────────────────────────── */
+.waiting-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(240, 160, 80, 0.08);
+  font-size: 12px;
+  color: var(--warning);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: pulse 1.2s ease infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
 .done-card {
   background: rgba(76, 175, 130, 0.1);
   border: 1px solid rgba(76, 175, 130, 0.25);
@@ -262,15 +393,13 @@ body {
   padding: 14px;
   text-align: center;
   color: var(--success);
-  font-weight: 500;
-  font-size: 13px;
-  line-height: 1.5;
-  animation: fadeUp 0.3s ease;
 }
 
-.done-card .done-icon { font-size: 24px; margin-bottom: 8px; }
+.done-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
 
-/* ── 底部操作区 ──────────────────────────────────────────────── */
 .capsule-footer {
   padding: 0 16px 16px;
   display: flex;
@@ -285,9 +414,9 @@ body {
   font-size: 13px;
   font-weight: 600;
   font-family: inherit;
+  letter-spacing: 0.3px;
   cursor: pointer;
   transition: all 0.18s;
-  letter-spacing: 0.3px;
   -webkit-app-region: no-drag;
 }
 
@@ -297,49 +426,42 @@ body {
   box-shadow: 0 4px 14px var(--accent-glow);
 }
 
-.btn-primary:hover  { background: var(--accent-hover); box-shadow: 0 4px 20px rgba(108,99,255,0.6); }
-.btn-primary:active { transform: scale(0.97); }
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
 .btn-primary:disabled {
-  background: rgba(108,99,255,0.3);
-  color: rgba(255,255,255,0.4);
+  background: rgba(108, 99, 255, 0.3);
+  color: rgba(255, 255, 255, 0.4);
   cursor: not-allowed;
   box-shadow: none;
 }
 
 .btn-ghost {
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
   border: 1px solid var(--border-glass);
 }
 
-.btn-ghost:hover  { background: rgba(255,255,255,0.10); color: var(--text-primary); }
-.btn-ghost:active { transform: scale(0.97); }
-
-/* ── 等待指示器（waiting_manual 状态） ──────────────────────── */
-.waiting-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--warning);
-  padding: 8px 12px;
-  background: rgba(240,160,80,0.08);
-  border-radius: var(--radius-sm);
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-primary);
 }
 
-.pulse-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--warning);
-  animation: pulse 1.2s ease infinite;
-  flex-shrink: 0;
+.cursor-tooltip {
+  position: fixed;
+  z-index: 20;
+  max-width: 180px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(8, 8, 14, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+  font-size: 11px;
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.4; transform: scale(0.7); }
+.hidden {
+  display: none !important;
 }
-
-/* ── 隐藏类 ─────────────────────────────────────────────────── */
-.hidden { display: none !important; }

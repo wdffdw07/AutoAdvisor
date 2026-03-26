@@ -4,6 +4,7 @@ const assert = require('node:assert/strict')
 const {
   buildSessionStartMessage,
   buildContextUpdateMessage,
+  buildSessionCompleteMessage,
   toOverlayCommand,
   isManualContinuation
 } = require('./session_bridge')
@@ -46,6 +47,17 @@ test('buildContextUpdateMessage emits KB-required fields', () => {
   assert.equal(msg.trace_id, 't-2')
 })
 
+test('buildSessionCompleteMessage emits KB-required fields', () => {
+  const msg = buildSessionCompleteMessage({
+    sessionId: 's-1',
+    traceId: 't-3'
+  })
+
+  assert.equal(msg.event, 'session.complete')
+  assert.equal(msg.protocol_version, 'v1')
+  assert.equal(msg.trace_id, 't-3')
+})
+
 test('toOverlayCommand maps guide.highlight to a visible overlay', () => {
   const command = toOverlayCommand({
     event: 'guide.highlight',
@@ -72,4 +84,36 @@ test('isManualContinuation returns true only for manual-next cases', () => {
   assert.equal(isManualContinuation({ event: 'guide.highlight', require_manual_next: true }), true)
   assert.equal(isManualContinuation({ event: 'guide.highlight', require_manual_next: false }), false)
   assert.equal(isManualContinuation({ event: 'guide.wait_manual' }), true)
+})
+
+test('SessionBridge reports disconnected status when the socket closes', async () => {
+  const statuses = []
+  const bridge = new (require('./session_bridge').SessionBridge)({
+    serverUrl: 'ws://example.test/ws',
+    sendToCapsule: () => {},
+    sendToOverlay: () => {},
+    captureSnapshot: async () => ({
+      context: {
+        process_name: 'Photoshop.exe',
+        window_title: 'Photoshop',
+        dpi_scale: 1,
+        window_box: [100, 50, 1400, 900]
+      },
+      image_base64: 'abc123'
+    }),
+    WebSocketImpl: class FakeSocket {
+      constructor () {
+        setImmediate(() => this.onclose && this.onclose())
+      }
+
+      send () {}
+      close () {}
+    },
+    onStatus: (status) => statuses.push(status)
+  })
+
+  await bridge.startSession({ goal: 'blur the image' })
+  await new Promise(resolve => setImmediate(resolve))
+
+  assert.deepEqual(statuses, ['reconnecting', 'disconnected'])
 })

@@ -163,6 +163,11 @@ class MockSession {
     }
   }
 
+  complete () {
+    if (this.finished) return
+    this._dispatchDone()
+  }
+
   _dispatchStep () {
     const step = MOCK_STEPS[this.stepIndex]
     // 先发 plan.step，再发 guide

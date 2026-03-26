@@ -11,8 +11,6 @@
 
 <body>
   <div class="capsule-card" id="capsuleCard">
-
-    <!-- 标题栏 -->
     <div class="capsule-header">
       <div class="capsule-title">
         <div class="icon">✦</div>
@@ -21,10 +19,7 @@
       <span class="status-badge idle" id="statusBadge">空闲</span>
     </div>
 
-    <!-- 内容区 -->
     <div class="capsule-body" id="capsuleBody">
-
-      <!-- 目标输入区（空闲时显示） -->
       <div class="goal-section" id="goalSection">
         <label>你想完成什么？</label>
         <div class="goal-input-wrap">
@@ -32,71 +27,64 @@
             type="text"
             class="goal-input"
             id="goalInput"
-            placeholder="例：给图片加高斯模糊"
-            maxlength="80"
+            placeholder="例：给图片加弹跳入场效果"
+            maxlength="120"
           >
         </div>
-        <p style="font-size:11px;color:var(--text-muted);margin-top:6px;">
-          按 <kbd style="background:rgba(255,255,255,0.1);padding:1px 5px;border-radius:3px">F9</kbd>
-          也可唤起
+        <p class="goal-shortcut-hint">
+          按 <kbd class="shortcut-key">F9</kbd> 也可唤起并捕获目标窗口
         </p>
+        <div class="capture-hint" id="idleCaptureHint"></div>
       </div>
 
-      <!-- 目标展示区（运行/完成时显示） -->
-      <div class="goal-display hidden" id="goalDisplay">
-        <div class="goal-label">目标</div>
-        <div id="goalDisplayText"></div>
-        <!-- Step3 新增：显示活跃窗口上下文（由 ipc:get-active-window 填入） -->
-        <div id="windowCtxBadge"
-             style="font-size:10px;color:var(--text-muted);margin-top:4px;
-                    white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+      <div class="capsule-scroll hidden" id="capsuleScrollRegion">
+        <div class="goal-display hidden" id="goalDisplay">
+          <div class="goal-display-header">
+            <div class="goal-label">目标</div>
+            <button class="icon-button hidden" id="goalRestartButton" aria-label="重新开始">↻</button>
+          </div>
+          <div id="goalDisplayText"></div>
+          <div class="goal-window-context" id="windowCtxBadge"></div>
+        </div>
+
+        <div class="progress-section hidden" id="progressSection">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+          </div>
+          <span class="progress-label" id="progressLabel">0/0</span>
+        </div>
+
+        <div class="plan-list hidden" id="planList"></div>
+
+        <div class="step-card hidden" id="stepCard">
+          <span class="step-action-badge click" id="stepActionBadge">点击</span>
+          <div class="step-description" id="stepDescription">—</div>
+          <div class="step-tooltip" id="stepTooltip"></div>
+          <div class="step-reason hidden" id="stepReason"></div>
+        </div>
+
+        <div class="waiting-indicator hidden" id="waitingIndicator">
+          <span class="pulse-dot"></span>
+          <span id="waitingText">正在等待你完成操作…</span>
+        </div>
+
+        <div class="done-card hidden" id="doneCard">
+          <div class="done-icon">✓</div>
+          <div id="doneSummary">引导完成</div>
         </div>
       </div>
 
-      <!-- 进度条（运行时显示） -->
-      <div class="progress-section hidden" id="progressSection">
-        <div class="progress-bar-wrap">
-          <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
-        </div>
-        <span class="progress-label" id="progressLabel">0/0</span>
-      </div>
-
-      <!-- 步骤卡片（运行时显示） -->
-      <div class="step-card hidden" id="stepCard">
-        <span class="step-action-badge click" id="stepActionBadge">点击</span>
-        <div class="step-description" id="stepDescription">—</div>
-        <div class="step-tooltip" id="stepTooltip"></div>
-        <div class="step-reason hidden" id="stepReason"></div>
-      </div>
-
-      <!-- 等待用户操作提示（连续动作） -->
-      <div class="waiting-indicator hidden" id="waitingIndicator">
-        <span class="pulse-dot"></span>
-        <span id="waitingText">正在等待你完成操作…</span>
-      </div>
-
-      <!-- 完成卡片 -->
-      <div class="done-card hidden" id="doneCard">
-        <div class="done-icon">✓</div>
-        <div id="doneSummary">引导完成！</div>
-      </div>
-
-    </div><!-- /capsule-body -->
-
-    <!-- 底部操作区 -->
-    <div class="capsule-footer">
-      <!-- 空闲状态：开始按钮 -->
-      <button class="btn btn-primary" id="btnStart">开始引导</button>
-
-      <!-- 运行状态：下一步按钮 -->
-      <button class="btn btn-primary hidden" id="btnNext" disabled>下一步 →</button>
-
-      <!-- 完成/运行状态：重置按钮 -->
-      <button class="btn btn-ghost hidden" id="btnReset">重新开始</button>
+      <div class="cursor-tooltip hidden" id="restartTooltip">重新开始当前引导</div>
     </div>
 
-  </div><!-- /capsule-card -->
+    <div class="capsule-footer">
+      <button class="btn btn-primary" id="btnStart">开始引导</button>
+      <button class="btn btn-primary hidden" id="btnNext" disabled>下一步</button>
+      <button class="btn btn-ghost hidden" id="btnComplete">已完成</button>
+    </div>
+  </div>
 
+  <script src="capture_feedback.js"></script>
   <script src="capsule.js"></script>
 </body>
 </html>

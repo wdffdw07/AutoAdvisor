@@ -34,6 +34,15 @@ function buildUserNextMessage ({ sessionId, traceId }) {
   }
 }
 
+function buildSessionCompleteMessage ({ sessionId, traceId }) {
+  return {
+    protocol_version: 'v1',
+    trace_id: traceId,
+    session_id: sessionId,
+    event: 'session.complete'
+  }
+}
+
 function toOverlayCommand (serverEvent) {
   if (serverEvent && serverEvent.event === 'guide.highlight') {
     return {
@@ -75,14 +84,16 @@ class SessionBridge {
     this.socket = null
     this.sessionId = null
     this.lastGuideEvent = null
+    this.lastContext = null
     this.pendingMessages = []
     this.status = 'disconnected'
   }
 
-  async startSession ({ goal }) {
-    const snapshot = await this.captureSnapshot()
+  async startSession ({ goal, context } = {}) {
+    const snapshot = await this.captureSnapshot({ context })
     this.sessionId = randomUUID()
     this.lastGuideEvent = null
+    this.lastContext = snapshot.context
 
     this._send(
       buildSessionStartMessage({
@@ -111,13 +122,27 @@ class SessionBridge {
       )
     }
 
-    const snapshot = await this.captureSnapshot()
+    const snapshot = await this.captureSnapshot({ context: this.lastContext })
+    this.lastContext = snapshot.context
     this._send(
       buildContextUpdateMessage({
         sessionId: this.sessionId,
         traceId: randomUUID(),
         context: snapshot.context,
         image_base64: snapshot.image_base64
+      })
+    )
+  }
+
+  async completeSession () {
+    if (!this.sessionId) {
+      return
+    }
+
+    this._send(
+      buildSessionCompleteMessage({
+        sessionId: this.sessionId,
+        traceId: randomUUID()
       })
     )
   }
@@ -160,7 +185,12 @@ class SessionBridge {
       this.sendToCapsule(msg)
 
       if (msg.event === 'guide.highlight' || msg.event === 'guide.wait_manual' || msg.event === 'session.done' || msg.event === 'session.error') {
-        this.sendToOverlay(toOverlayCommand(msg))
+        const overlayCommand = toOverlayCommand(msg)
+        if (this.lastContext && overlayCommand.visible) {
+          overlayCommand.window_box = this.lastContext.window_box
+          overlayCommand.dpi_scale = this.lastContext.dpi_scale
+        }
+        this.sendToOverlay(overlayCommand)
       }
 
       if (msg.event === 'guide.highlight' || msg.event === 'guide.wait_manual') {
@@ -200,6 +230,7 @@ module.exports = {
   SessionBridge,
   buildSessionStartMessage,
   buildContextUpdateMessage,
+  buildSessionCompleteMessage,
   buildUserNextMessage,
   toOverlayCommand,
   isManualContinuation

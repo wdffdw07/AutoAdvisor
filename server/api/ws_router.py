@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -19,6 +19,8 @@ class SessionState:
     step_index: int = 0
     waiting_for_manual: bool = False
     done: bool = False
+    plan_steps: list[dict] = field(default_factory=list)
+    plan_summary: str = ""
 
     @classmethod
     def from_start(cls, payload: dict) -> "SessionState":
@@ -89,6 +91,10 @@ def _validate_v1_user_next(payload: dict) -> None:
     _validate_v1_event(payload, "user.next", ())
 
 
+def _validate_v1_session_complete(payload: dict) -> None:
+    _validate_v1_event(payload, "session.complete", ())
+
+
 def _normalize_legacy_screenshot(payload: dict) -> dict:
     rect = payload.get("windowRect") or {}
     return {
@@ -124,6 +130,10 @@ def normalize_client_message(payload: dict) -> dict:
 
     if event_name == "user.next":
         _validate_v1_user_next(payload)
+        return payload
+
+    if event_name == "session.complete":
+        _validate_v1_session_complete(payload)
         return payload
 
     if payload.get("type") == "screenshot":
@@ -240,6 +250,8 @@ async def handle_client_payload(
     elif event_name == "user.next":
         session_state.waiting_for_manual = False
         return session_state, []
+    elif event_name == "session.complete":
+        events = await service.complete_session(session_state, normalized)
     elif event_name == "context.update":
         events = await service.advance_session(session_state, normalized)
     else:

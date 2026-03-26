@@ -227,7 +227,137 @@ class JianyingAgent:
 3. 再给出下一步操作
 """
         return prompt
-    
+
+    @staticmethod
+    def _extract_response_text(message: Any) -> str:
+        regular_content = message.content
+        reasoning_content = getattr(message, 'reasoning_content', None)
+
+        if regular_content and regular_content.strip():
+            return regular_content.strip()
+        if reasoning_content and reasoning_content.strip():
+            return reasoning_content.strip()
+        raise ValueError("API returned empty content and reasoning_content")
+
+    @staticmethod
+    def _strip_code_fences(text: str) -> str:
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        return text.strip()
+
+    async def plan_steps(
+        self,
+        base64_image: str,
+        user_goal: str = "complete the current task",
+    ) -> Dict[str, Any]:
+        """Generate a complete step list for the current task."""
+        prompt = """
+You are planning a GUI task for a user.
+
+Return strict JSON with this shape:
+{
+  "summary": "short summary",
+  "steps": [
+    {
+      "action": "click|input_text|drag|wait|complete",
+      "description": "specific user-facing instruction",
+      "reason": "why this step exists",
+      "require_manual_next": true
+    }
+  ]
+}
+
+Rules:
+- Produce the full plan up front.
+- Use as many steps as the UI task actually needs, usually 3 to 8.
+- Do not merge multiple user actions into one step.
+- If a description would contain words like "then", "after that", or multiple clicks/drags, split it into separate steps.
+- Each description must be specific enough for a human to review before execution.
+- Mark require_manual_next=true for drag/input_text/wait style steps.
+- End with a real final step, not a placeholder.
+- Only use a complete/final step when the screenshot already shows the task can be finished after the listed actions.
+- Return JSON only.
+"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": prompt,
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": f"User goal: {user_goal}",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/png;base64,{base64_image}"
+                                }
+                            }
+                        ],
+                    },
+                ],
+                max_tokens=1200,
+                temperature=0.1,
+                top_p=0.7,
+            )
+
+            choice = response.choices[0]
+            raw_text = self._strip_code_fences(self._extract_response_text(choice.message))
+            result = json.loads(raw_text)
+            steps = result.get("steps") if isinstance(result, dict) else None
+
+            if not isinstance(steps, list) or not steps:
+                raise ValueError("plan_steps response missing steps")
+
+            normalized_steps = []
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+                action = step.get("action", "click")
+                normalized_steps.append(
+                    {
+                        "action": action,
+                        "description": step.get("description") or step.get("tooltip") or action,
+                        "reason": step.get("reason", ""),
+                        "require_manual_next": bool(
+                            step.get("require_manual_next", action in {"input_text", "drag", "wait"})
+                        ),
+                    }
+                )
+
+            if not normalized_steps:
+                raise ValueError("plan_steps response contained no valid steps")
+
+            return {
+                "summary": result.get("summary", user_goal),
+                "steps": normalized_steps,
+            }
+
+        except Exception as error:
+            _log(f"[WARN] plan_steps fallback activated: {error}")
+            return {
+                "summary": user_goal,
+                "steps": [
+                    {
+                        "action": "click",
+                        "description": user_goal or "Review the current UI",
+                        "reason": "Fallback plan generated after planning failure",
+                        "require_manual_next": False,
+                    }
+                ],
+            }
+
     async def analyze_screenshot(
         self, 
         base64_image: str, 
