@@ -49,14 +49,15 @@ class RuntimeStabilityTests(unittest.TestCase):
         try:
             import llm_agent
 
-            with strict_gbk_stdout():
-                with mock.patch.object(llm_agent, "ZhipuAI", return_value=object()):
-                    with mock.patch.object(
-                        llm_agent.JianyingAgent,
-                        "_load_schema",
-                        return_value={"description": "test schema"},
-                    ):
-                        agent = llm_agent.JianyingAgent(api_key="test-key")
+            with mock.patch.dict(os.environ, {"LLM_MODEL": "glm-4-flash"}, clear=False):
+                with strict_gbk_stdout():
+                    with mock.patch.object(llm_agent, "ZhipuAI", return_value=object()):
+                        with mock.patch.object(
+                            llm_agent.JianyingAgent,
+                            "_load_schema",
+                            return_value={"description": "test schema"},
+                        ):
+                            agent = llm_agent.JianyingAgent(api_key="test-key")
         finally:
             sys.path.pop(0)
 
