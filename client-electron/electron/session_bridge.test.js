@@ -234,3 +234,55 @@ test('SessionBridge can send explicit recovery requests with surface-aware snaps
   assert.equal(sent.at(-1).recovery_action, 'full_replan')
   assert.equal(sent.at(-1).surface.hwnd, '100')
 })
+
+test('buildSurfaceSnapshotMessage preserves cross-window surface stacks for picker flows', () => {
+  const msg = buildSurfaceSnapshotMessage({
+    mode: 'observe',
+    sessionId: 's-1',
+    traceId: 't-6',
+    snapshot: {
+      context: {
+        process_name: 'explorer.exe',
+        window_title: 'Open',
+        dpi_scale: 1,
+        window_box: [200, 120, 900, 700]
+      },
+      image_base64: 'picker123',
+      active_surface: {
+        hwnd: '300',
+        kind: 'picker',
+        process_name: 'explorer.exe',
+        window_title: 'Open',
+        surface_signature: 'explorer.exe|picker|300|open'
+      },
+      surface_stack: [
+        {
+          hwnd: '100',
+          kind: 'main',
+          process_name: 'JianyingPro.exe',
+          window_title: 'Jianying',
+          surface_signature: 'jianyingpro.exe|main|100|jianying'
+        },
+        {
+          hwnd: '200',
+          kind: 'dialog',
+          process_name: 'JianyingPro.exe',
+          window_title: 'Export dialog',
+          surface_signature: 'jianyingpro.exe|dialog|200|export+dialog'
+        },
+        {
+          hwnd: '300',
+          kind: 'picker',
+          process_name: 'explorer.exe',
+          window_title: 'Open',
+          surface_signature: 'explorer.exe|picker|300|open'
+        }
+      ]
+    }
+  })
+
+  assert.equal(msg.surface_stack.length, 3)
+  assert.equal(msg.surface_stack[0].kind, 'main')
+  assert.equal(msg.surface_stack[2].kind, 'picker')
+  assert.equal(msg.surface.hwnd, '300')
+})

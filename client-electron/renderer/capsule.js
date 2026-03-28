@@ -1,4 +1,4 @@
-'use strict'
+﻿'use strict'
 
 const captureFeedback = window.captureFeedback || {}
 const getShortcutCaptureFeedback = captureFeedback.buildShortcutCaptureFeedback || (() => null)
@@ -31,8 +31,18 @@ const btnNext = document.getElementById('btnNext')
 const btnComplete = document.getElementById('btnComplete')
 const btnRestart = document.getElementById('goalRestartButton')
 
-const RETRY_HINT = '请先切回目标软件，再按 F9'
-const RESTART_TOOLTIP_LABEL = '重新开始当前引导'
+const RETRY_HINT = 'Please focus the target app and press F9 again.'
+const RESTART_TOOLTIP_LABEL = 'Restart this tutorial'
+const ACTION_MAP = {
+  click: { label: 'Click', cls: 'click' },
+  drag: { label: 'Drag', cls: 'drag' },
+  input_text: { label: 'Type', cls: 'input_text' },
+  text: { label: 'Type', cls: 'input_text' },
+  scroll: { label: 'Scroll', cls: 'scroll' },
+  observe: { label: 'Observe', cls: 'wait' },
+  wait: { label: 'Wait', cls: 'wait' },
+  complete: { label: 'Done', cls: 'click' }
+}
 
 let sessionId = null
 let plannedSteps = []
@@ -42,15 +52,6 @@ let currentWindowCtx = null
 let currentCaptureError = ''
 let restartTooltipTimer = null
 let lastPointerPosition = { x: 0, y: 0 }
-
-const ACTION_MAP = {
-  click: { label: '点击', cls: 'click' },
-  drag: { label: '拖拽', cls: 'drag' },
-  input_text: { label: '输入', cls: 'input_text' },
-  scroll: { label: '滚动', cls: 'scroll' },
-  wait: { label: '等待', cls: 'wait' },
-  complete: { label: '完成', cls: 'click' }
-}
 
 function show (el) {
   if (el) el.classList.remove('hidden')
@@ -62,12 +63,10 @@ function hide (el) {
 
 function setChildren (el, children) {
   if (!el) return
-
   if (typeof el.replaceChildren === 'function') {
     el.replaceChildren(...children)
     return
   }
-
   el.innerHTML = ''
   el.children = children
 }
@@ -91,6 +90,16 @@ function parseStepIndex (stepId) {
   if (!stepId) return 0
   const match = String(stepId).match(/(\d+)$/)
   return match ? parseInt(match[1], 10) : 0
+}
+
+function normalizePlanStep (step, index) {
+  return {
+    step_id: normalizeStepId(step.step_id, index),
+    action: step.action || 'click',
+    description: step.description || step.tooltip || `Step ${index}`,
+    reason: step.reason || '',
+    require_manual_next: Boolean(step.require_manual_next)
+  }
 }
 
 function isValidWindowContext (ctx) {
@@ -129,12 +138,10 @@ function scheduleRestartTooltip () {
 }
 
 function renderWindowContextFeedback () {
-  const detailText = currentCaptureError || getWindowCaptureLabel(currentWindowCtx)
-
+  const detailText = currentCaptureError || getWindowCaptureLabel(currentWindowCtx) || ''
   if (elWindowCtx) {
     elWindowCtx.textContent = detailText
   }
-
   if (elIdleCaptureHint) {
     elIdleCaptureHint.textContent = detailText
   }
@@ -142,16 +149,16 @@ function renderWindowContextFeedback () {
 
 function setDraftStatus () {
   if (currentCaptureError) {
-    setStatus('error', '未捕获')
+    setStatus('error', 'Need capture')
     return
   }
 
   if (currentWindowCtx) {
-    setStatus('captured', '已捕获')
+    setStatus('captured', 'Captured')
     return
   }
 
-  setStatus('idle', '空闲')
+  setStatus('idle', 'Idle')
 }
 
 function updateProgress (step, total) {
@@ -167,16 +174,6 @@ function updateProgress (step, total) {
     show(elProgressSec)
   } else {
     hide(elProgressSec)
-  }
-}
-
-function normalizePlanStep (step, index) {
-  return {
-    step_id: normalizeStepId(step.step_id, index),
-    action: step.action || 'click',
-    description: step.description || step.tooltip || `第 ${index} 步`,
-    reason: step.reason || '',
-    require_manual_next: Boolean(step.require_manual_next)
   }
 }
 
@@ -238,11 +235,16 @@ function clearExecutionPanels () {
   hide(elDoneCard)
   elTooltip.textContent = ''
   elReason.textContent = ''
+  elDescription.textContent = ''
 }
 
-function switchToDraft (options = {}) {
-  const preserveGoal = Boolean(options.preserveGoal)
-  const preserveContext = options.preserveContext !== false
+function ensureInteractiveShell () {
+  show(elScrollRegion)
+  show(elGoalDisplay)
+  show(btnRestart)
+}
+
+function switchToDraft ({ preserveGoal = false, preserveContext = true } = {}) {
   const nextGoal = preserveGoal ? (elGoalText.textContent || elGoalInput.value || '') : ''
 
   uiState = 'draft'
@@ -267,21 +269,21 @@ function switchToDraft (options = {}) {
   hide(btnComplete)
   hide(btnRestart)
   btnNext.disabled = true
+  btnNext.textContent = 'Next'
   btnComplete.disabled = false
-  btnNext.textContent = '下一步'
   elGoalInput.value = nextGoal
   updateProgress(0, 0)
   renderWindowContextFeedback()
   setDraftStatus()
 }
 
-function switchToRunning (goal, sid) {
-  uiState = 'running'
+function switchToPlanning (goal, sid) {
+  uiState = 'planning'
   sessionId = sid
   plannedSteps = []
   currentStepIndex = 0
 
-  setStatus('running', '引导中')
+  setStatus('planning', 'Planning')
   hide(elGoalSection)
   show(elScrollRegion)
   elGoalText.textContent = goal
@@ -292,22 +294,26 @@ function switchToRunning (goal, sid) {
   renderPlanList()
   clearExecutionPanels()
   hide(btnStart)
+  hide(btnNext)
+  hide(btnComplete)
+}
+
+function enterRunningState () {
+  uiState = 'running'
+  setStatus('running', 'Guiding')
+  ensureInteractiveShell()
   show(btnNext)
   show(btnComplete)
-  btnNext.disabled = true
-  btnNext.textContent = '下一步'
-  btnComplete.disabled = false
+  btnNext.textContent = 'Next'
 }
 
 function switchToDone (summary) {
   uiState = 'done'
-  setStatus('done', '完成')
-  show(elScrollRegion)
-  show(elGoalDisplay)
-  show(btnRestart)
+  setStatus('done', 'Done')
+  ensureInteractiveShell()
   hide(elWaiting)
   hide(elStepCard)
-  elDoneSummary.textContent = summary || '引导完成'
+  elDoneSummary.textContent = summary || 'Tutorial complete'
   show(elDoneCard)
   hide(btnNext)
   hide(btnComplete)
@@ -316,12 +322,6 @@ function switchToDone (summary) {
     updateProgress(plannedSteps.length, plannedSteps.length)
     renderPlanList()
   }
-}
-
-function ensureRunningSummaryVisible () {
-  show(elScrollRegion)
-  show(elGoalDisplay)
-  show(btnRestart)
 }
 
 function upsertPlanStep (step) {
@@ -339,19 +339,18 @@ function upsertPlanStep (step) {
 }
 
 function applyCurrentStep (msg) {
-  const fallbackIndex = parseStepIndex(msg.step_id) || currentStepIndex || 1
   const stepIndex = upsertPlanStep({
     step_id: msg.step_id,
     action: msg.action,
     description: msg.description,
-    reason: msg.reason
-  }) || fallbackIndex
+    reason: msg.reason,
+    require_manual_next: msg.require_manual_next
+  })
 
-  currentStepIndex = stepIndex
-  updateProgress(currentStepIndex, msg.total_steps || plannedSteps.length)
+  updateProgress(stepIndex, msg.total_steps || plannedSteps.length)
   renderPlanList()
 
-  const actionMeta = ACTION_MAP[msg.action] || { label: msg.action || '操作', cls: 'click' }
+  const actionMeta = ACTION_MAP[msg.action] || { label: msg.action || 'Act', cls: 'click' }
   elActionBadge.textContent = actionMeta.label
   elActionBadge.className = `step-action-badge ${actionMeta.cls}`
   elDescription.textContent = msg.description || ''
@@ -367,24 +366,21 @@ function applyCurrentStep (msg) {
   hide(elWaiting)
   hide(elDoneCard)
   show(elStepCard)
-  btnNext.disabled = true
-  btnNext.textContent = '下一步'
 }
 
 function handlePlanReady (msg) {
-  ensureRunningSummaryVisible()
+  enterRunningState()
   plannedSteps = Array.isArray(msg.steps)
     ? msg.steps.map((step, index) => normalizePlanStep(step, index + 1))
     : []
 
-  currentStepIndex = Number(msg.current_step_index || 0)
-  updateProgress(currentStepIndex, msg.total_steps || plannedSteps.length)
+  updateProgress(Number(msg.current_step_index || 0), msg.total_steps || plannedSteps.length)
   renderPlanList()
+  btnNext.disabled = true
 }
 
 function handleWsMessage (msg) {
   if (!msg || !msg.event) return
-
   if (msg.session_id) {
     sessionId = msg.session_id
   }
@@ -395,22 +391,34 @@ function handleWsMessage (msg) {
       break
 
     case 'plan.step':
-      ensureRunningSummaryVisible()
+      enterRunningState()
       applyCurrentStep(msg)
       break
 
     case 'guide.highlight':
-      elTooltip.textContent = msg.tooltip || ''
+      ensureInteractiveShell()
       show(elStepCard)
       hide(elWaiting)
+      elTooltip.textContent = msg.tooltip || ''
       btnNext.disabled = false
+      btnNext.textContent = 'Next'
+      if (msg.require_manual_next) {
+        uiState = 'checkpoint_wait'
+        setStatus('checkpoint_wait', 'Awaiting confirmation')
+      } else {
+        uiState = 'running'
+        setStatus('running', 'Guiding')
+      }
       break
 
     case 'guide.wait_manual':
-      elTooltip.textContent = ''
-      elWaitingText.textContent = msg.tooltip || '完成当前操作后点击下一步'
+      ensureInteractiveShell()
+      uiState = 'checkpoint_wait'
+      setStatus('checkpoint_wait', 'Awaiting confirmation')
+      elWaitingText.textContent = msg.tooltip || 'Finish the current action, then continue.'
       show(elWaiting)
       btnNext.disabled = false
+      btnNext.textContent = 'Next'
       break
 
     case 'session.done':
@@ -418,10 +426,22 @@ function handleWsMessage (msg) {
       break
 
     case 'session.error':
-      setStatus('error', '出错')
-      elTooltip.textContent = `提示: ${msg.message || '未知错误'}`
+      ensureInteractiveShell()
       show(elStepCard)
-      btnNext.disabled = !msg.recoverable
+      hide(elWaiting)
+      elTooltip.textContent = `Hint: ${msg.message || 'Unknown error'}`
+      if (msg.recoverable) {
+        uiState = 'recovering'
+        setStatus('recovering', 'Recovering')
+        show(btnNext)
+        btnNext.disabled = false
+        btnNext.textContent = 'Retry'
+      } else {
+        uiState = 'blocked'
+        setStatus('blocked', 'Blocked')
+        hide(btnNext)
+        hide(btnComplete)
+      }
       break
 
     default:
@@ -450,7 +470,7 @@ btnStart.addEventListener('click', async () => {
   currentCaptureError = ''
   renderWindowContextFeedback()
   sessionId = `s-local-${simpleId()}`
-  switchToRunning(goal, sessionId)
+  switchToPlanning(goal, sessionId)
 
   window.electronAPI.send('session:start', {
     goal,
@@ -464,6 +484,15 @@ btnNext.addEventListener('click', () => {
 
   btnNext.disabled = true
   hide(elWaiting)
+
+  if (uiState === 'recovering') {
+    window.electronAPI.send('session:recover', {
+      session_id: sessionId,
+      trace_id: simpleId(),
+      recovery_action: 'step_retarget'
+    })
+    return
+  }
 
   window.electronAPI.send('session:next', {
     session_id: sessionId,
@@ -508,38 +537,42 @@ elGoalInput.addEventListener('keydown', (event) => {
 window.electronAPI.on('ipc:ws-message', handleWsMessage)
 
 window.electronAPI.on('ipc:ws-status', ({ status }) => {
-  if (uiState !== 'running') return
+  if (uiState === 'draft' || uiState === 'done' || uiState === 'blocked') {
+    return
+  }
 
   if (status === 'connected') {
-    setStatus('connected', '已连接')
+    setStatus('connected', 'Connected')
   } else if (status === 'reconnecting') {
-    setStatus('running', '重连中')
+    setStatus('planning', 'Reconnecting')
   } else if (status === 'disconnected') {
-    setStatus('error', '已断开')
-    btnNext.disabled = false
+    setStatus('error', 'Disconnected')
+    if (uiState !== 'planning') {
+      show(btnNext)
+      btnNext.disabled = false
+    }
+    show(btnComplete)
     btnComplete.disabled = false
   }
 })
 
 window.electronAPI.on('ipc:shortcut-triggered', (payload) => {
-  const accelerator = payload && payload.accelerator
-  if (accelerator !== 'F9') return
+  if (!payload || payload.accelerator !== 'F9') return
 
   const feedback = getShortcutCaptureFeedback(payload)
 
-  if (payload && isValidWindowContext(payload.captured_context)) {
+  if (isValidWindowContext(payload.captured_context)) {
     currentWindowCtx = payload.captured_context
     currentCaptureError = ''
-  } else if (!payload || !payload.error) {
+  } else if (!payload.error) {
     window.electronAPI.invoke('ipc:get-active-window').then((ctx) => {
       currentWindowCtx = isValidWindowContext(ctx) ? ctx : null
       currentCaptureError = currentWindowCtx ? '' : RETRY_HINT
       renderWindowContextFeedback()
-    }).catch((err) => {
+    }).catch(() => {
       currentWindowCtx = null
       currentCaptureError = RETRY_HINT
       renderWindowContextFeedback()
-      console.warn('[capsule] ipc:get-active-window failed:', err)
     })
   } else {
     currentWindowCtx = null
@@ -560,3 +593,4 @@ window.electronAPI.on('ipc:shortcut-triggered', (payload) => {
 })
 
 switchToDraft({ preserveGoal: false, preserveContext: false })
+void resolveCurrentWindowContext()

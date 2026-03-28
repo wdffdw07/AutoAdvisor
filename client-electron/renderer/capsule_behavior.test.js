@@ -1,4 +1,4 @@
-const test = require('node:test')
+﻿const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -216,101 +216,165 @@ function createHarness () {
   }
 }
 
-test('plan.ready renders the full planned steps and updates active progress', () => {
-  const harness = createHarness()
-
-  harness.emit('ipc:ws-message', {
-    event: 'plan.ready',
-    session_id: 's-1',
-    summary: '给素材做弹跳入场',
-    total_steps: 4,
-    steps: [
-      { step_id: 's-1', action: 'click', description: '打开特效面板', reason: '先进入特效区' },
-      { step_id: 's-2', action: 'input_text', description: '搜索弹跳入场', reason: '缩小候选范围' },
-      { step_id: 's-3', action: 'drag', description: '拖到视频轨道', reason: '把效果应用到素材' },
-      { step_id: 's-4', action: 'complete', description: '确认效果预览', reason: '收尾检查' }
-    ]
-  })
-
-  harness.emit('ipc:ws-message', {
-    event: 'plan.step',
-    session_id: 's-1',
-    step_id: 's-2',
-    total_steps: 4,
-    action: 'input_text',
-    description: '搜索弹跳入场',
-    reason: '缩小候选范围'
-  })
-
-  const planList = harness.elements.get('planList')
-  const progressLabel = harness.elements.get('progressLabel')
-
-  assert.equal(planList.children.length, 4)
-  assert.equal(planList.classList.contains('hidden'), false)
-  assert.equal(planList.children[0].classList.contains('done'), true)
-  assert.equal(planList.children[1].classList.contains('active'), true)
-  assert.equal(progressLabel.textContent, '2/4')
-})
-
-test('restart hover shows a delayed tooltip, complete sends session.complete, and restart restores the draft state', async () => {
+test('start enters planning before the first plan arrives and does not require F9', async () => {
   const harness = createHarness()
   const goalInput = harness.elements.get('goalInput')
   const btnStart = harness.elements.get('btnStart')
+  const statusBadge = harness.elements.get('statusBadge')
+  const btnNext = harness.elements.get('btnNext')
   const btnComplete = harness.elements.get('btnComplete')
-  const goalRestartButton = harness.elements.get('goalRestartButton')
-  const restartTooltip = harness.elements.get('restartTooltip')
-  const goalSection = harness.elements.get('goalSection')
-  const goalDisplay = harness.elements.get('goalDisplay')
-
-  goalInput.value = '加个弹跳入场的效果'
-  btnStart.click()
-  await harness.flushAsync()
-  harness.sentMessages.length = 0
-
-  goalRestartButton.dispatchEvent({ type: 'mouseenter', clientX: 120, clientY: 48 })
-  goalRestartButton.dispatchEvent({ type: 'mousemove', clientX: 128, clientY: 54 })
-  harness.advanceTimers(500)
-
-  assert.equal(restartTooltip.classList.contains('hidden'), false)
-  assert.match(restartTooltip.textContent, /重新开始/)
-
-  btnComplete.click()
-
-  assert.equal(harness.sentMessages[0].channel, 'session:complete')
-
-  goalRestartButton.click()
-
-  assert.equal(goalSection.classList.contains('hidden'), false)
-  assert.equal(goalDisplay.classList.contains('hidden'), true)
-  assert.equal(goalInput.value, '加个弹跳入场的效果')
-  assert.equal(btnStart.classList.contains('hidden'), false)
-  assert.equal(btnComplete.classList.contains('hidden'), true)
-})
-
-test('start can proceed without F9 so the main process can resolve the target window in the background', async () => {
-  const harness = createHarness()
-  const goalInput = harness.elements.get('goalInput')
-  const btnStart = harness.elements.get('btnStart')
-  const btnComplete = harness.elements.get('btnComplete')
-  const goalSection = harness.elements.get('goalSection')
-  const goalDisplay = harness.elements.get('goalDisplay')
 
   harness.setActiveWindowResponse({
-    error: 'No target window detected. Press F9 while the target app is focused.',
+    error: 'No target window detected.',
     process_name: '',
     window_title: '',
     dpi_scale: 1,
     window_box: [0, 0, 0, 0]
   })
 
-  goalInput.value = '加个弹跳入场的效果'
+  goalInput.value = 'Add a bounce intro effect'
   btnStart.click()
   await harness.flushAsync()
 
   assert.equal(harness.sentMessages[0].channel, 'session:start')
-  assert.equal(harness.sentMessages[0].payload.goal, '加个弹跳入场的效果')
   assert.equal(harness.sentMessages[0].payload.captured_context, null)
-  assert.equal(goalSection.classList.contains('hidden'), true)
-  assert.equal(goalDisplay.classList.contains('hidden'), false)
-  assert.equal(btnComplete.classList.contains('hidden'), false)
+  assert.match(statusBadge.className, /planning/)
+  assert.equal(btnNext.classList.contains('hidden'), true)
+  assert.equal(btnComplete.classList.contains('hidden'), true)
+})
+
+test('plan.ready replaces the full plan list when a replan arrives', () => {
+  const harness = createHarness()
+
+  harness.emit('ipc:ws-message', {
+    event: 'plan.ready',
+    session_id: 's-1',
+    summary: 'Initial plan',
+    current_step_index: 1,
+    total_steps: 3,
+    steps: [
+      { step_id: 's-1', action: 'click', description: 'Open Effects', reason: 'Enter the panel' },
+      { step_id: 's-2', action: 'input_text', description: 'Search bounce', reason: 'Filter candidates' },
+      { step_id: 's-3', action: 'drag', description: 'Drag to timeline', reason: 'Apply the effect' }
+    ]
+  })
+
+  harness.emit('ipc:ws-message', {
+    event: 'plan.ready',
+    session_id: 's-1',
+    summary: 'Replacement plan',
+    current_step_index: 1,
+    total_steps: 2,
+    steps: [
+      { step_id: 's-1b', action: 'click', description: 'Open Export', reason: 'Switch route' },
+      { step_id: 's-2b', action: 'click', description: 'Confirm export', reason: 'Finish' }
+    ]
+  })
+
+  assert.equal(harness.elements.get('planList').children.length, 2)
+  assert.equal(harness.elements.get('progressLabel').textContent, '1/2')
+  assert.match(harness.elements.get('statusBadge').className, /running/)
+})
+
+test('checkpoint wait and recovering states use explicit gating actions', () => {
+  const harness = createHarness()
+  const statusBadge = harness.elements.get('statusBadge')
+  const btnNext = harness.elements.get('btnNext')
+
+  harness.emit('ipc:ws-message', {
+    event: 'plan.ready',
+    session_id: 's-1',
+    summary: 'Plan',
+    current_step_index: 1,
+    total_steps: 1,
+    steps: [
+      { step_id: 's-1', action: 'click', description: 'Open Export', reason: 'Start here' }
+    ]
+  })
+  harness.emit('ipc:ws-message', {
+    event: 'plan.step',
+    session_id: 's-1',
+    step_id: 's-1',
+    total_steps: 1,
+    action: 'click',
+    description: 'Open Export',
+    reason: 'Start here'
+  })
+  harness.emit('ipc:ws-message', {
+    event: 'guide.highlight',
+    session_id: 's-1',
+    step_id: 's-1',
+    tooltip: 'Click here',
+    require_manual_next: true,
+    target: { relative_box: [10, 20, 30, 40], confidence: 0.8 }
+  })
+
+  assert.match(statusBadge.className, /checkpoint_wait/)
+  assert.equal(btnNext.disabled, false)
+  assert.equal(btnNext.classList.contains('hidden'), false)
+
+  harness.emit('ipc:ws-message', {
+    event: 'session.error',
+    session_id: 's-1',
+    message: 'Need a narrower target',
+    recoverable: true
+  })
+
+  assert.match(statusBadge.className, /recovering/)
+  assert.equal(btnNext.textContent, 'Retry')
+  btnNext.click()
+  assert.equal(harness.sentMessages.at(-1).channel, 'session:recover')
+  assert.equal(harness.sentMessages.at(-1).payload.recovery_action, 'step_retarget')
+
+  harness.emit('ipc:ws-message', {
+    event: 'session.error',
+    session_id: 's-1',
+    message: 'Blocked',
+    recoverable: false
+  })
+
+  assert.match(statusBadge.className, /blocked/)
+  assert.equal(btnNext.classList.contains('hidden'), true)
+})
+
+test('done and restart restore the draft state while preserving the goal draft', async () => {
+  const harness = createHarness()
+  const goalInput = harness.elements.get('goalInput')
+  const btnStart = harness.elements.get('btnStart')
+  const btnComplete = harness.elements.get('btnComplete')
+  const btnRestart = harness.elements.get('goalRestartButton')
+  const doneCard = harness.elements.get('doneCard')
+  const goalSection = harness.elements.get('goalSection')
+  const goalDisplay = harness.elements.get('goalDisplay')
+
+  goalInput.value = 'Add a bounce intro effect'
+  btnStart.click()
+  await harness.flushAsync()
+  harness.emit('ipc:ws-message', {
+    event: 'plan.ready',
+    session_id: 's-1',
+    summary: 'Plan',
+    current_step_index: 1,
+    total_steps: 1,
+    steps: [
+      { step_id: 's-1', action: 'click', description: 'Open Effects', reason: 'Start here' }
+    ]
+  })
+
+  btnComplete.click()
+  assert.equal(harness.sentMessages.at(-1).channel, 'session:complete')
+
+  harness.emit('ipc:ws-message', {
+    event: 'session.done',
+    session_id: 's-1',
+    summary: 'Tutorial complete'
+  })
+
+  assert.equal(doneCard.classList.contains('hidden'), false)
+  btnRestart.click()
+
+  assert.equal(goalSection.classList.contains('hidden'), false)
+  assert.equal(goalDisplay.classList.contains('hidden'), true)
+  assert.equal(goalInput.value, 'Add a bounce intro effect')
+  assert.equal(btnStart.classList.contains('hidden'), false)
 })
