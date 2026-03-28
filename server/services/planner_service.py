@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from copy import deepcopy
 from typing import Any, Callable
@@ -130,6 +130,8 @@ class PlannerService:
             normalized = deepcopy(step)
             normalized.setdefault("id", f"step_{index}")
             normalized.setdefault("title", normalized["instruction"])
+            if normalized.get("action") and not normalized.get("action_family"):
+                normalized["action_family"] = normalized["action"]
             normalized.setdefault("recovery_hints", {})
             normalized.setdefault("critical", False)
             return normalized
@@ -149,6 +151,7 @@ class PlannerService:
             "id": f"step_{index}",
             "title": description,
             "instruction": description,
+            "action_family": action,
             "critical": require_manual_next,
             "target": {
                 "kind": "region_only",
@@ -224,3 +227,4 @@ class PlannerService:
         normalized = deepcopy(decision)
         normalized["new_plan"] = validate_plan(normalized.get("new_plan") or {})
         return normalized
+

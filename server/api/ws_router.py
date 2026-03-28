@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -249,7 +249,10 @@ async def handle_client_payload(
         ]
     elif event_name == "user.next":
         session_state.waiting_for_manual = False
-        return session_state, []
+        if hasattr(service, "confirm_session"):
+            events = await service.confirm_session(session_state, normalized)
+        else:
+            events = []
     elif event_name == "session.complete":
         events = await service.complete_session(session_state, normalized)
     elif event_name == "context.update":
@@ -272,3 +275,6 @@ async def handle_client_payload(
         return session_state, [_legacy_response_from_events(stamped)]
 
     return session_state, stamped
+
+
+
