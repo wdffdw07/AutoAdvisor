@@ -1,8 +1,9 @@
-const test = require('node:test')
+﻿const test = require('node:test')
 const assert = require('node:assert/strict')
 
 const {
   chooseWindowContext,
+  enrichWindowContext,
   isSelfWindowContext
 } = require('./window_context')
 
@@ -112,4 +113,19 @@ test('chooseWindowContext ignores Codex windows by default and reuses the last r
   })
 
   assert.equal(chosen.process_name, 'CapCut.exe')
+})
+
+test('enrichWindowContext adds surface metadata that is safe to serialize', () => {
+  const enriched = enrichWindowContext({
+    hwnd: '500',
+    owner_hwnd: '300',
+    process_name: 'explorer.exe',
+    window_title: 'Save As',
+    window_box: [100, 50, 800, 600],
+    dpi_scale: 1
+  })
+
+  assert.equal(enriched.kind, 'picker')
+  assert.deepEqual(enriched.title_keywords, ['save', 'as'])
+  assert.ok(enriched.surface_signature)
 })

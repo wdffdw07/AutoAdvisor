@@ -1,6 +1,7 @@
-'use strict'
+﻿'use strict'
 
 const { execFile } = require('child_process')
+const { enrichWindowContext } = require('./window_context')
 
 function runPowershell (script, timeout = 12000) {
   return new Promise((resolve, reject) => {
@@ -31,7 +32,7 @@ function parseWindowInfo (raw, sourceName) {
     throw new Error(`${sourceName}: invalid JSON from PowerShell: ${raw.slice(0, 200)}`)
   }
 
-  return {
+  return enrichWindowContext({
     process_name: obj.process_name || 'unknown.exe',
     window_title: obj.window_title || '',
     window_box: [
@@ -40,8 +41,10 @@ function parseWindowInfo (raw, sourceName) {
       Number(obj.width),
       Number(obj.height)
     ],
-    dpi_scale: Number(obj.dpi_scale) || 1.0
-  }
+    dpi_scale: Number(obj.dpi_scale) || 1.0,
+    hwnd: obj.hwnd || '',
+    owner_hwnd: obj.owner_hwnd || ''
+  })
 }
 
 async function getActiveWindow () {
@@ -53,6 +56,8 @@ using System.Text;
 public class WinApi {
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
     [DllImport("user32.dll")]
     public static extern bool GetWindowRect(IntPtr h, ref RECT r);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -66,6 +71,7 @@ public class WinApi {
 }
 "@
 $h  = [WinApi]::GetForegroundWindow()
+$owner = [WinApi]::GetWindow($h, 4)
 $r  = New-Object WinApi+RECT
 [WinApi]::GetWindowRect($h, [ref]$r) | Out-Null
 $sb = New-Object System.Text.StringBuilder(512)
@@ -84,6 +90,8 @@ catch { $pn = "unknown.exe" }
     width        = $r.R - $r.L
     height       = $r.B - $r.T
     dpi_scale    = [math]::Round($dpi / 96.0, 2)
+    hwnd         = $h.ToInt64().ToString()
+    owner_hwnd   = $(if ($owner -eq [IntPtr]::Zero) { "" } else { $owner.ToInt64().ToString() })
 } | ConvertTo-Json -Compress`
 
   let raw
@@ -110,6 +118,8 @@ public class WinApi {
     [DllImport("user32.dll")]
     public static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
     [DllImport("user32.dll")]
+    public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+    [DllImport("user32.dll")]
     public static extern bool GetWindowRect(IntPtr h, ref RECT r);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
@@ -128,6 +138,7 @@ $pt = New-Object WinApi+POINT
 $h = [WinApi]::WindowFromPoint($pt)
 if ($h -eq [IntPtr]::Zero) { throw "window under cursor not found" }
 $h = [WinApi]::GetAncestor($h, 2)
+$owner = [WinApi]::GetWindow($h, 4)
 $r  = New-Object WinApi+RECT
 [WinApi]::GetWindowRect($h, [ref]$r) | Out-Null
 $sb = New-Object System.Text.StringBuilder(512)
@@ -146,6 +157,8 @@ catch { $pn = "unknown.exe" }
     width        = $r.R - $r.L
     height       = $r.B - $r.T
     dpi_scale    = [math]::Round($dpi / 96.0, 2)
+    hwnd         = $h.ToInt64().ToString()
+    owner_hwnd   = $(if ($owner -eq [IntPtr]::Zero) { "" } else { $owner.ToInt64().ToString() })
 } | ConvertTo-Json -Compress`
 
   let raw

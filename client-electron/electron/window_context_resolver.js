@@ -1,7 +1,8 @@
-'use strict'
+﻿'use strict'
 
 const {
   chooseWindowContext,
+  enrichWindowContext,
   isUsableWindowContext
 } = require('./window_context')
 
@@ -15,35 +16,37 @@ async function resolveWindowContext ({
   rememberContext = () => {}
 } = {}) {
   const options = { selfProcessNames }
+  const preferred = enrichWindowContext(preferredContext)
 
-  if (isUsableWindowContext(preferredContext, options)) {
-    rememberContext(preferredContext)
-    return preferredContext
+  if (isUsableWindowContext(preferred, options)) {
+    rememberContext(preferred)
+    return preferred
   }
 
   const fallbackContext = typeof getActiveWindow === 'function'
-    ? await getActiveWindow()
+    ? enrichWindowContext(await getActiveWindow())
     : null
 
   let retryContext = null
   let cursorContext = null
-  const hasReusableLastContext = isUsableWindowContext(lastContext, options)
+  const reusableLastContext = enrichWindowContext(lastContext)
+  const hasReusableLastContext = isUsableWindowContext(reusableLastContext, options)
 
   if (!hasReusableLastContext &&
       !isUsableWindowContext(fallbackContext, options) &&
       typeof retryGetActiveWindow === 'function') {
-    retryContext = await retryGetActiveWindow(fallbackContext)
+    retryContext = enrichWindowContext(await retryGetActiveWindow(fallbackContext))
   }
 
   if (!isUsableWindowContext(retryContext || fallbackContext, options) &&
       typeof probeWindowAtCursor === 'function') {
-    cursorContext = await probeWindowAtCursor(retryContext || fallbackContext)
+    cursorContext = enrichWindowContext(await probeWindowAtCursor(retryContext || fallbackContext))
   }
 
   const targetContext = chooseWindowContext({
-    preferredContext,
+    preferredContext: preferred,
     fallbackContext: cursorContext || retryContext || fallbackContext,
-    lastContext,
+    lastContext: reusableLastContext,
     selfProcessNames
   })
 
