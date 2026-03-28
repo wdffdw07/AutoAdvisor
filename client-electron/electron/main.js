@@ -1,9 +1,10 @@
-'use strict'
+﻿'use strict'
 
 const { app, BrowserWindow, ipcMain, globalShortcut, screen } = require('electron')
 const path = require('path')
 const { MockSession } = require('./mock')
 const { SessionBridge } = require('./session_bridge')
+const { SurfaceTracker } = require('./surface_tracker')
 const { getActiveWindow, getWindowAtCursor, captureRegion } = require('./sniffer')
 const {
   getSelfProcessNames,
@@ -16,6 +17,7 @@ let capsuleWin = null
 let overlayWin = null
 let currentMockSession = null
 let sessionBridge = null
+let surfaceTracker = null
 let lastNonSelfContext = null
 
 const useMock =
@@ -395,6 +397,7 @@ async function handleShortcutTriggered () {
 }
 
 app.whenReady().then(() => {
+  surfaceTracker = new SurfaceTracker({ selfProcessNames })
   createCapsuleWindow()
   createOverlayWindow()
 
@@ -423,3 +426,4 @@ app.on('will-quit', () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+

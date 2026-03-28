@@ -1,10 +1,11 @@
-'use strict'
+﻿'use strict'
 
 const { contextBridge, ipcRenderer } = require('electron')
 
 const ALLOWED_SEND = new Set([
   'session:start',
   'session:next',
+  'session:recover',
   'session:complete'
 ])
 
@@ -54,3 +55,4 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.removeAllListeners(channel)
   }
 })
+

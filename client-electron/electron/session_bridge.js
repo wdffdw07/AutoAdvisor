@@ -1,37 +1,85 @@
-'use strict'
+﻿'use strict'
 
 const { randomUUID } = require('node:crypto')
 
-function buildSessionStartMessage ({ sessionId, traceId, goal, context, image_base64 }) {
+function normalizeSnapshot (snapshot = {}) {
   return {
+    context: snapshot.context || null,
+    image_base64: snapshot.image_base64 || '',
+    surface: snapshot.active_surface || snapshot.surface || null,
+    surface_stack: Array.isArray(snapshot.surface_stack) ? snapshot.surface_stack : []
+  }
+}
+
+function buildSurfaceSnapshotMessage ({ mode, sessionId, traceId, goal, snapshot, recoveryAction } = {}) {
+  const normalized = normalizeSnapshot(snapshot)
+  const message = {
     protocol_version: 'v1',
     trace_id: traceId,
     session_id: sessionId,
-    event: 'session.start',
+    event: mode === 'start' ? 'session.start' : 'context.update',
+    context: normalized.context,
+    image_base64: normalized.image_base64,
+    surface: normalized.surface,
+    surface_stack: normalized.surface_stack
+  }
+
+  if (mode === 'start') {
+    message.goal = goal
+  }
+
+  if (recoveryAction) {
+    message.recovery_action = recoveryAction
+  }
+
+  return message
+}
+
+function buildSessionStartMessage ({ sessionId, traceId, goal, context, image_base64, surface, surface_stack } = {}) {
+  return buildSurfaceSnapshotMessage({
+    mode: 'start',
+    sessionId,
+    traceId,
     goal,
-    context,
-    image_base64
-  }
+    snapshot: { context, image_base64, surface, surface_stack }
+  })
 }
 
-function buildContextUpdateMessage ({ sessionId, traceId, context, image_base64 }) {
+function buildContextUpdateMessage ({ sessionId, traceId, context, image_base64, surface, surface_stack } = {}) {
+  return buildSurfaceSnapshotMessage({
+    mode: 'observe',
+    sessionId,
+    traceId,
+    snapshot: { context, image_base64, surface, surface_stack }
+  })
+}
+
+function buildCheckpointConfirmMessage ({ sessionId, traceId, snapshot } = {}) {
+  const normalized = normalizeSnapshot(snapshot)
   return {
     protocol_version: 'v1',
     trace_id: traceId,
     session_id: sessionId,
-    event: 'context.update',
-    context,
-    image_base64
+    event: 'user.next',
+    action: 'confirm_checkpoint',
+    context: normalized.context,
+    surface: normalized.surface,
+    surface_stack: normalized.surface_stack
   }
 }
 
-function buildUserNextMessage ({ sessionId, traceId }) {
-  return {
-    protocol_version: 'v1',
-    trace_id: traceId,
-    session_id: sessionId,
-    event: 'user.next'
-  }
+function buildUserNextMessage ({ sessionId, traceId, snapshot } = {}) {
+  return buildCheckpointConfirmMessage({ sessionId, traceId, snapshot })
+}
+
+function buildRecoveryRequestMessage ({ sessionId, traceId, recoveryAction, snapshot } = {}) {
+  return buildSurfaceSnapshotMessage({
+    mode: 'observe',
+    sessionId,
+    traceId,
+    snapshot,
+    recoveryAction
+  })
 }
 
 function buildSessionCompleteMessage ({ sessionId, traceId }) {
@@ -85,6 +133,7 @@ class SessionBridge {
     this.sessionId = null
     this.lastGuideEvent = null
     this.lastContext = null
+    this.lastSnapshot = null
     this.pendingMessages = []
     this.status = 'disconnected'
   }
@@ -94,42 +143,65 @@ class SessionBridge {
     this.sessionId = randomUUID()
     this.lastGuideEvent = null
     this.lastContext = snapshot.context
+    this.lastSnapshot = snapshot
 
     this._send(
-      buildSessionStartMessage({
+      buildSurfaceSnapshotMessage({
+        mode: 'start',
         sessionId: this.sessionId,
         traceId: randomUUID(),
         goal,
-        context: snapshot.context,
-        image_base64: snapshot.image_base64
+        snapshot
       })
     )
   }
 
-  async continueSession ({ manual } = {}) {
+  async continueSession ({ manual, recoveryAction } = {}) {
     if (!this.sessionId) {
       return
     }
 
     const shouldSendUserNext = manual !== undefined ? manual : isManualContinuation(this.lastGuideEvent)
+    const snapshot = await this.captureSnapshot({ context: this.lastContext })
+    this.lastContext = snapshot.context
+    this.lastSnapshot = snapshot
 
     if (shouldSendUserNext) {
       this._send(
-        buildUserNextMessage({
+        buildCheckpointConfirmMessage({
           sessionId: this.sessionId,
-          traceId: randomUUID()
+          traceId: randomUUID(),
+          snapshot
         })
       )
     }
 
-    const snapshot = await this.captureSnapshot({ context: this.lastContext })
-    this.lastContext = snapshot.context
     this._send(
-      buildContextUpdateMessage({
+      buildSurfaceSnapshotMessage({
+        mode: 'observe',
         sessionId: this.sessionId,
         traceId: randomUUID(),
-        context: snapshot.context,
-        image_base64: snapshot.image_base64
+        snapshot,
+        recoveryAction
+      })
+    )
+  }
+
+  async requestRecovery ({ recoveryAction }) {
+    if (!this.sessionId) {
+      return
+    }
+
+    const snapshot = await this.captureSnapshot({ context: this.lastContext })
+    this.lastContext = snapshot.context
+    this.lastSnapshot = snapshot
+
+    this._send(
+      buildRecoveryRequestMessage({
+        sessionId: this.sessionId,
+        traceId: randomUUID(),
+        recoveryAction,
+        snapshot
       })
     )
   }
@@ -228,10 +300,13 @@ class SessionBridge {
 
 module.exports = {
   SessionBridge,
-  buildSessionStartMessage,
+  buildCheckpointConfirmMessage,
   buildContextUpdateMessage,
+  buildRecoveryRequestMessage,
   buildSessionCompleteMessage,
+  buildSessionStartMessage,
+  buildSurfaceSnapshotMessage,
   buildUserNextMessage,
-  toOverlayCommand,
-  isManualContinuation
+  isManualContinuation,
+  toOverlayCommand
 }
