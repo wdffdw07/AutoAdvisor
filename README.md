@@ -1,5 +1,10 @@
 # AutoDirector Copilot - 剪映智导
 
+> [!WARNING]
+> 本项目已停止更新，不再作为当前开发主线。
+> 后续开发已转向 [Clicky For Windows](https://github.com/wdffdw07/Clicky-For-Windows)。
+> 当前仓库仅保留为历史参考与迁移期资产库。
+
 > ⚠️ 说明（迁移期）：本 README 主要描述旧阶段运行方式。
 > 当前迁移执行与 Agent 约束请以 `agent_playbook/` 为准，尤其是：
 > - `agent_playbook/02_mvp_scope_checklist.md`
